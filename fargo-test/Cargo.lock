@@ -1,0 +1,69 @@
+[root]
+name = "fargo-test"
+version = "0.1.0"
+dependencies = [
+ "magenta 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mxruntime 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "bitflags"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "conv"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "custom_derive 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "custom_derive"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "magenta"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "conv 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "magenta-sys 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "magenta-sys"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "bitflags 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "mxruntime"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "magenta 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "magenta-sys 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mxruntime-sys 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "mxruntime-sys"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "magenta-sys 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[metadata]
+"checksum bitflags 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "aad18937a628ec6abcd26d1489012cc0e18c21798210f491af69ded9b881106d"
+"checksum conv 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "78ff10625fd0ac447827aa30ea8b861fead473bb60aeb73af6c1c58caf0d1299"
+"checksum custom_derive 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "ef8ae57c4978a2acd8b869ce6b9ca1dfe817bff704c220209fdef2c0b75a01b9"
+"checksum magenta 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "92159d95603bd96e44850aa5b458656a372b3324940f3523a20d08f0f9cd8760"
+"checksum magenta-sys 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "07fd18dd6819f5a24387638769d95fe6e9145eb15c1756d721620604306b7b72"
+"checksum mxruntime 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d267fa561985cefb55172834a020f0e77339dbda7287482fd4b58936e792089a"
+"checksum mxruntime-sys 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5b3f2afc13950ce3a42515cfc3bdc949f552b0e71109c52481d250ec0e0d9eb8"

@@ -1,0 +1,11 @@
+[package]
+name = "fargo"
+version = "0.1.0"
+authors = ["Rob Tsuk <robtsuk@google.com>"]
+
+[dependencies]
+clap = "2"
+serde = "1.0.9"
+serde_derive = "1.0.9"
+serde_json = "1.0.2"
+uname = "0.1.1"

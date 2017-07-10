@@ -1,0 +1,12 @@
+[package]
+name = "fargo-test"
+version = "0.1.0"
+authors = ["Rob Tsuk <robtsuk@google.com>"]
+
+[dependencies]
+magenta = "0.1.0"
+mxruntime = "0.1.0"
+
+[[test]]
+name = "bork"
+path = "test/bork_bork.rs"
