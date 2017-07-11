@@ -38,7 +38,7 @@ pub fn scp_to_device(netaddr: &String,
         .arg(source_path)
         .arg(destination_with_address)
         .status()
-        .expect("Unable to run ssh.");
+        .expect("Unable to run scp.");
 
     if ssh_result.success() {
         Ok(())
