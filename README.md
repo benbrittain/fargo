@@ -27,10 +27,3 @@ __At the moment fargo requires the FUCHSIA\_ROOT environmental variable be set t
 fargo to using something like an SDK instead.
 
 Currently fargo does not support building artifacts that need additional libraries.
-
-## To Do
-
-* ~~Clean up build/build-test~~
-* ~~Add support for release builds~~
-* Add support for depending on the FIDL generated crates.
-* Add support for crates like cairo-rs that need native libraries.
