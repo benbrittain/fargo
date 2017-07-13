@@ -7,12 +7,14 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
+extern crate toml;
 extern crate uname;
 
 mod cargo_interop;
 mod device;
 mod sdk;
 mod utils;
+mod update_crates;
 
 use cargo_interop::Artifact;
 use clap::{App, Arg, SubCommand};
@@ -21,6 +23,7 @@ use sdk::{rust_c_path, rust_linker_path};
 use std::path::PathBuf;
 use std::process::Command;
 use std::str;
+use update_crates::update_crates;
 use utils::strip_binary;
 
 fn build_tests(verbose: bool, release: bool, test_target: &String) -> bool {
@@ -267,6 +270,13 @@ fn main() {
                 .help("Start a simulator with graphics enabled")))
         .subcommand(SubCommand::with_name("ssh")
             .about("Open a shell on Fuchsia device or emulator"))
+        .subcommand(SubCommand::with_name("update-crates")
+            .about("Update the FIDL generated crates")
+            .arg(Arg::with_name("target")
+                .long("target")
+                .value_name("target")
+                .required(true)
+                .help("Target directory for updated crates")))
         .get_matches();
 
     let verbose = matches.is_present("verbose");
@@ -295,5 +305,8 @@ fn main() {
         start_emulator(restart_matches.is_present("graphics"));
     } else if let Some(_) = matches.subcommand_matches("ssh") {
         ssh("");
+    } else if let Some(update_matches) = matches.subcommand_matches("update-crates") {
+        let update_target = update_matches.value_of("target").unwrap().to_string();
+        update_crates(&update_target);
     }
 }
