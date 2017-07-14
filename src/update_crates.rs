@@ -7,6 +7,16 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use toml;
 
+error_chain!{
+    links {
+        SDK(::sdk::Error, ::sdk::ErrorKind);
+    }
+
+    foreign_links {
+        Io(::std::io::Error);
+    }
+}
+
 static LICENSE_RS_FILE_HEADER: &'static str =
     r#"// Copyright 2017 The Fuchsia Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
@@ -121,11 +131,13 @@ fn look_for_crates(dir: &Path, root: &Path, target: &Path) -> io::Result<()> {
     }
     Ok(())
 }
-pub fn update_crates(target: &String) {
-    let gen_root = fuchsia_root().join("out/debug-x86-64/gen");
+
+pub fn update_crates(target: &String) -> Result<()> {
+    let gen_root = fuchsia_root()?.join("out/debug-x86-64/gen");
     let crate_sources = vec!["application", "apps/mozart", "apps/ledger", "apps/modular"];
     for one_source in crate_sources {
         let one_source_path = gen_root.join(one_source);
-        look_for_crates(&one_source_path, &gen_root, &PathBuf::from(target)).unwrap();
+        look_for_crates(&one_source_path, &gen_root, &PathBuf::from(target))?;
     }
+    Ok(())
 }

@@ -6,39 +6,39 @@ use std::path::PathBuf;
 use std::env;
 use utils::is_mac;
 
-pub fn fuchsia_root() -> PathBuf {
-    let fuchsia_root_value = match env::var("FUCHSIA_ROOT") {
-        Ok(val) => val,
-        Err(_) => {
-            panic!("You must set the environmental variable FUCHSIA_ROOT to point to a Fuchsia \
-                    tree with a debug-x86-64 build including the rust module")
-        }
-    };
-    PathBuf::from(fuchsia_root_value)
+error_chain!{}
+
+pub fn fuchsia_root() -> Result<PathBuf> {
+    let fuchsia_root_value = env::var("FUCHSIA_ROOT").chain_err(|| {
+            "FUCHSIA_ROOT not set. You must set the environmental variable FUCHSIA_ROOT to point \
+             to a Fuchsia tree with a debug-x86-64 build including the rust module"
+        })?;
+
+    Ok(PathBuf::from(fuchsia_root_value))
 }
 
-fn rust_buildtools_path() -> PathBuf {
+fn rust_buildtools_path() -> Result<PathBuf> {
     let platform_name = if is_mac() {
         "rust-x86_64-apple-darwin"
     } else {
         "rust-x86_64-unknown-linux-gnu"
     };
-    fuchsia_root().join("buildtools/rust").join(platform_name)
+    Ok(fuchsia_root()?.join("buildtools/rust").join(platform_name))
 }
 
-pub fn rust_c_path() -> PathBuf {
-    rust_buildtools_path().join("bin/rustc")
+pub fn rust_c_path() -> Result<PathBuf> {
+    Ok(rust_buildtools_path()?.join("bin/rustc"))
 }
 
-pub fn rust_linker_path() -> PathBuf {
-    fuchsia_root().join("out/debug-x86-64/host_x64/x86_64-unknown-fuchsia-cc")
+pub fn rust_linker_path() -> Result<PathBuf> {
+    Ok(fuchsia_root()?.join("out/debug-x86-64/host_x64/x86_64-unknown-fuchsia-cc"))
 }
 
-pub fn strip_tool_path() -> PathBuf {
+pub fn strip_tool_path() -> Result<PathBuf> {
     let platform_name = if is_mac() {
         "clang+llvm-x86_64-darwin"
     } else {
         "clang+llvm-x86_64-linux"
     };
-    fuchsia_root().join("buildtools/toolchain").join(platform_name).join("bin/strip")
+    Ok(fuchsia_root()?.join("buildtools/toolchain").join(platform_name).join("bin/strip"))
 }

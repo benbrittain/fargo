@@ -9,6 +9,12 @@ use std::time::Duration;
 use uname::uname;
 use sdk::strip_tool_path;
 
+error_chain!{
+    links {
+        SDK(::sdk::Error, ::sdk::ErrorKind);
+    }
+}
+
 #[allow(dead_code)]
 pub fn duration_as_milliseconds(duration: &Duration) -> u64 {
     let subsec_ms: u64 = duration.subsec_nanos() as u64 / 1000000;
@@ -20,19 +26,19 @@ pub fn is_mac() -> bool {
     uname().unwrap().sysname == "Darwin"
 }
 
-pub fn strip_binary(binary: &PathBuf) -> PathBuf {
+pub fn strip_binary(binary: &PathBuf) -> Result<PathBuf> {
     let file_name = binary.file_name().unwrap();
     let new_file_name = file_name.to_string_lossy().into_owned() + "_stripped";
     let target_path = binary.parent().unwrap().join(new_file_name);
-    let strip_result = Command::new(strip_tool_path())
-        .arg(binary)
+    let strip_result = Command::new(strip_tool_path()?).arg(binary)
         .arg("-o")
         .arg(&target_path)
         .status()
-        .expect("strip command failed to start");
+        .chain_err(|| "strip command failed to start")?;
 
     if !strip_result.success() {
-        panic!("strip failed with error {:?}", strip_result)
+        bail!("strip failed with error {:?}", strip_result);
     }
-    target_path
+
+    Ok(target_path)
 }
