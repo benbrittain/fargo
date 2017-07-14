@@ -9,7 +9,7 @@ use std::str;
 use sdk::fuchsia_root;
 use utils::is_mac;
 
-pub fn netaddr() -> Result<String, String> {
+pub fn netaddr(verbose: bool) -> Result<String, String> {
     let fuchsia_root = fuchsia_root();
     let netaddr_binary = fuchsia_root.join("out/build-magenta/tools/netaddr");
     let netaddr_result = Command::new(netaddr_binary)
@@ -17,14 +17,19 @@ pub fn netaddr() -> Result<String, String> {
         .output()
         .expect("Couldn't run netaddr.");
     if netaddr_result.status.success() {
-        Ok(str::from_utf8(&netaddr_result.stdout).unwrap().trim().to_string())
+        let result = str::from_utf8(&netaddr_result.stdout).unwrap().trim().to_string();
+        if verbose {
+            println!("netaddr result = {}", result);
+        }
+        Ok(result)
     } else {
         Err(format!("netaddr failed with: {}",
                     String::from_utf8_lossy(&netaddr_result.stderr)))
     }
 }
 
-pub fn scp_to_device(netaddr: &String,
+pub fn scp_to_device(verbose: bool,
+                     netaddr: &String,
                      source_path: &PathBuf,
                      destination_path: &String)
                      -> Result<(), String> {
@@ -32,7 +37,7 @@ pub fn scp_to_device(netaddr: &String,
     let fuchsia_root = fuchsia_root();
     let ssh_config = fuchsia_root.join("out/debug-x86-64/ssh-keys/ssh_config");
     let ssh_result = Command::new("scp")
-        .arg("-q")
+        .arg(if verbose { "-v" } else { "-q" })
         .arg("-F")
         .arg(ssh_config)
         .arg(source_path)
@@ -47,8 +52,8 @@ pub fn scp_to_device(netaddr: &String,
     }
 }
 
-pub fn ssh(command: &str) {
-    let netaddr_result = netaddr();
+pub fn ssh(verbose: bool, command: &str) {
+    let netaddr_result = netaddr(verbose);
     let fuchsia_root = fuchsia_root();
     let ssh_config = fuchsia_root.join("out/debug-x86-64/ssh-keys/ssh_config");
     match netaddr_result {

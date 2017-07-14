@@ -26,6 +26,72 @@ use std::str;
 use update_crates::update_crates;
 use utils::strip_binary;
 
+fn run_programs_on_target(programs: &Vec<String>, verbose: bool, params: Option<&Vec<String>>) {
+    let netaddr_result = netaddr(verbose);
+    match netaddr_result {
+        Ok(netaddr) => {
+            for filename in programs {
+                let source_path = PathBuf::from(&filename);
+                let stripped_source_path = strip_binary(&source_path);
+                let destination_path = format!("/tmp/{}",
+                                               stripped_source_path.file_name()
+                                                   .unwrap()
+                                                   .to_string_lossy());
+                println!("copying {} to {}",
+                         source_path.to_string_lossy(),
+                         destination_path);
+                let scp_result =
+                    scp_to_device(verbose, &netaddr, &stripped_source_path, &destination_path);
+                match scp_result {
+                    Ok(_) => {
+                        let command_string = if params.is_some() {
+                            let param_string = params.unwrap().join(" ");
+                            destination_path + " " + &param_string
+                        } else {
+                            destination_path
+                        };
+                        if verbose {
+                            println!("running {}", command_string);
+                        }
+                        ssh(verbose, &command_string);
+                    }
+                    Err(scp_err) => {
+                        println!("scp failed with: {}", scp_err);
+
+                    }
+                }
+            }
+        }
+
+        Err(netaddr_err) => {
+            println!("{}", netaddr_err);
+        }
+    }
+}
+
+fn programs_from_artifacts<F>(verbose: bool, artifacts_text: &str, filter: F) -> Vec<String>
+    where F: Fn(&Artifact) -> bool
+{
+    let mut programs = vec![];
+    let artifacts = artifacts_text.trim().split('\n');
+    for artifact_line in artifacts {
+        if verbose {
+            println!("# {}", artifact_line);
+        }
+        let artifact: Artifact = serde_json::from_str(&artifact_line).unwrap();
+        if verbose {
+            println!("# {:?}", artifact);
+        }
+        if filter(&artifact) {
+            for filename in artifact.filenames {
+                programs.push(filename);
+            }
+        }
+    }
+    programs
+}
+
+
 fn build_tests(verbose: bool, release: bool, test_target: &String) -> bool {
     if verbose {
         println!("# build tests phase 1");
@@ -81,58 +147,10 @@ fn run_tests(verbose: bool, release: bool, test_target: &String, params: &Vec<St
         .expect("cargo command failed to start");
 
     if output.status.success() {
-        let netaddr_result = netaddr();
-        match netaddr_result {
-            Ok(netaddr) => {
-                let artifacts = str::from_utf8(&output.stdout).unwrap().trim().split('\n');
-                for artifact_line in artifacts {
-                    if verbose {
-                        println!("# {}", artifact_line);
-                    }
-                    let artifact: Artifact = serde_json::from_str(&artifact_line).unwrap();
-                    if verbose {
-                        println!("# {:?}", artifact);
-                    }
-                    if artifact.profile.test {
-                        for filename in artifact.filenames {
-                            let source_path = PathBuf::from(&filename);
-                            let stripped_source_path = strip_binary(&source_path);
-                            let destination_path = format!("/tmp/{}",
-                                                           stripped_source_path.file_name()
-                                                               .unwrap()
-                                                               .to_string_lossy());
-                            println!("copying {} to {}",
-                                     source_path.to_string_lossy(),
-                                     destination_path);
-                            let scp_result =
-                                scp_to_device(&netaddr, &stripped_source_path, &destination_path);
-                            match scp_result {
-                                Ok(_) => {
-                                    let command_string = if params.len() > 0 {
-                                        let param_string = params.join(" ");
-                                        destination_path + " " + &param_string
-                                    } else {
-                                        destination_path
-                                    };
-                                    if verbose {
-                                        println!("running {}", command_string);
-                                    }
-                                    ssh(&command_string);
-                                }
-                                Err(scp_err) => {
-                                    println!("scp failed with: {}", scp_err);
-
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Err(netaddr_err) => {
-                println!("{}", netaddr_err);
-            }
-        }
+        let artifacts = str::from_utf8(&output.stdout).unwrap();
+        let programs =
+            programs_from_artifacts(verbose, artifacts, |artifact| artifact.profile.test);
+        run_programs_on_target(&programs, verbose, Some(&params));
     } else {
         println!("cargo test command failed");
     }
@@ -175,49 +193,11 @@ fn run_binary(verbose: bool, release: bool) {
         .output()
         .expect("cargo command failed to start");
     if output.status.success() {
-        let netaddr_result = netaddr();
-        match netaddr_result {
-            Ok(netaddr) => {
-                let artifacts = str::from_utf8(&output.stdout).unwrap().trim().split('\n');
-                for artifact_line in artifacts {
-                    if verbose {
-                        println!("# {}", artifact_line);
-                    }
-                    let artifact: Artifact = serde_json::from_str(&artifact_line).unwrap();
-                    if verbose {
-                        println!("# {:?}", artifact);
-                    }
-                    if artifact.target.kind.contains(&"bin".to_string()) {
-                        for filename in artifact.filenames {
-                            let source_path = PathBuf::from(&filename);
-                            let stripped_source_path = strip_binary(&source_path);
-                            let destination_path = format!("/tmp/{}",
-                                                           stripped_source_path.file_name()
-                                                               .unwrap()
-                                                               .to_string_lossy());
-                            println!("copying {} to {}",
-                                     stripped_source_path.to_string_lossy(),
-                                     destination_path);
-                            let scp_result =
-                                scp_to_device(&netaddr, &stripped_source_path, &destination_path);
-                            match scp_result {
-                                Ok(_) => {
-                                    println!("running {}", destination_path);
-                                    ssh(&destination_path);
-                                }
-                                Err(scp_err) => {
-                                    println!("scp failed with: {}", scp_err);
-
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            Err(netaddr_err) => {
-                println!("{}", netaddr_err);
-            }
-        }
+        let artifacts = str::from_utf8(&output.stdout).unwrap();
+        let programs = programs_from_artifacts(verbose, artifacts, |artifact| {
+            artifact.target.kind.contains(&"bin".to_string())
+        });
+        run_programs_on_target(&programs, verbose, None);
     }
 
 }
@@ -304,7 +284,7 @@ fn main() {
         stop_emulator();
         start_emulator(restart_matches.is_present("graphics"));
     } else if let Some(_) = matches.subcommand_matches("ssh") {
-        ssh("");
+        ssh(verbose, "");
     } else if let Some(update_matches) = matches.subcommand_matches("update-crates") {
         let update_target = update_matches.value_of("target").unwrap().to_string();
         update_crates(&update_target);
