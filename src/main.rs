@@ -26,7 +26,10 @@ use std::str;
 use update_crates::update_crates;
 use utils::strip_binary;
 
-fn run_programs_on_target(programs: &Vec<String>, verbose: bool, params: Option<&Vec<String>>) {
+fn run_programs_on_target(programs: &Vec<String>,
+                          verbose: bool,
+                          launch: bool,
+                          params: Option<&Vec<String>>) {
     let netaddr_result = netaddr(verbose);
     match netaddr_result {
         Ok(netaddr) => {
@@ -44,12 +47,15 @@ fn run_programs_on_target(programs: &Vec<String>, verbose: bool, params: Option<
                     scp_to_device(verbose, &netaddr, &stripped_source_path, &destination_path);
                 match scp_result {
                     Ok(_) => {
-                        let command_string = if params.is_some() {
+                        let mut command_string = if params.is_some() {
                             let param_string = params.unwrap().join(" ");
                             destination_path + " " + &param_string
                         } else {
                             destination_path
                         };
+                        if launch {
+                            command_string = "launch ".to_string() + &command_string;
+                        }
                         if verbose {
                             println!("running {}", command_string);
                         }
@@ -150,7 +156,7 @@ fn run_tests(verbose: bool, release: bool, test_target: &String, params: &Vec<St
         let artifacts = str::from_utf8(&output.stdout).unwrap();
         let programs =
             programs_from_artifacts(verbose, artifacts, |artifact| artifact.profile.test);
-        run_programs_on_target(&programs, verbose, Some(&params));
+        run_programs_on_target(&programs, verbose, false, Some(&params));
     } else {
         println!("cargo test command failed");
     }
@@ -175,7 +181,7 @@ fn build_binary(verbose: bool, release: bool) -> bool {
     build_command.success()
 }
 
-fn run_binary(verbose: bool, release: bool) {
+fn run_binary(verbose: bool, release: bool, launch: bool) {
     if !build_binary(verbose, release) {
         return;
     }
@@ -197,7 +203,7 @@ fn run_binary(verbose: bool, release: bool) {
         let programs = programs_from_artifacts(verbose, artifacts, |artifact| {
             artifact.target.kind.contains(&"bin".to_string())
         });
-        run_programs_on_target(&programs, verbose, None);
+        run_programs_on_target(&programs, verbose, launch, None);
     }
 
 }
@@ -236,7 +242,10 @@ fn main() {
             .about("Run binary on Fuchsia device or emulator")
             .arg(Arg::with_name("release")
                 .long("release")
-                .help("Build release")))
+                .help("Build release"))
+            .arg(Arg::with_name("launch")
+                .long("launch")
+                .help("Use launch to run binary.")))
         .subcommand(SubCommand::with_name("start")
             .about("Start a Fuchsia emulator")
             .arg(Arg::with_name("graphics")
@@ -270,7 +279,9 @@ fn main() {
     } else if let Some(build_matches) = matches.subcommand_matches("build") {
         build_binary(verbose, build_matches.is_present("release"));
     } else if let Some(run_matches) = matches.subcommand_matches("run") {
-        run_binary(verbose, run_matches.is_present("release"));
+        run_binary(verbose,
+                   run_matches.is_present("release"),
+                   run_matches.is_present("launch"));
     } else if let Some(build_test_matches) = matches.subcommand_matches("build-tests") {
         let test_target = build_test_matches.value_of("test").unwrap_or("").to_string();
         build_tests(verbose,
