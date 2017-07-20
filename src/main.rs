@@ -102,7 +102,7 @@ fn programs_from_artifacts<F>(verbose: bool, artifacts_text: &str, filter: F) ->
 }
 
 
-fn build_tests(verbose: bool, release: bool, test_target: &String) -> Result<()> {
+fn build_tests(verbose: bool, release: bool, test_target: &String) -> Result<bool> {
     if verbose {
         println!("# build tests phase 1");
     }
@@ -118,14 +118,14 @@ fn build_tests(verbose: bool, release: bool, test_target: &String) -> Result<()>
         args.push(test_target.as_str());
     }
 
-    Command::new("cargo").env("RUSTC", rust_c_path()?.to_str().unwrap())
+    let status = Command::new("cargo").env("RUSTC", rust_c_path()?.to_str().unwrap())
         .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
              rust_linker_path()?.to_str().unwrap())
         .args(args)
         .status()
         .chain_err(|| "Unable to run cargo test")?;
 
-    Ok(())
+    Ok(status.success())
 }
 
 fn run_tests(verbose: bool,
@@ -133,7 +133,10 @@ fn run_tests(verbose: bool,
              test_target: &String,
              params: &Vec<String>)
              -> Result<()> {
-    build_tests(verbose, release, test_target)?;
+
+    if !build_tests(verbose, release, test_target)? {
+        return Ok(());
+    }
 
     if verbose {
         println!("# build tests phase 2");
@@ -167,7 +170,7 @@ fn run_tests(verbose: bool,
     run_programs_on_target(&programs, verbose, false, &params)
 }
 
-fn build_binary(verbose: bool, release: bool) -> Result<()> {
+fn build_binary(verbose: bool, release: bool) -> Result<(bool)> {
     if verbose {
         println!("# build binary phase 1");
     }
@@ -177,18 +180,21 @@ fn build_binary(verbose: bool, release: bool) -> Result<()> {
         args.push("--release");
     }
 
-    Command::new("cargo").env("RUSTC", rust_c_path()?.to_str().unwrap())
+    let status = Command::new("cargo").env("RUSTC", rust_c_path()?.to_str().unwrap())
         .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
              rust_linker_path()?.to_str().unwrap())
         .args(args)
         .status()
         .chain_err(|| "Unable to run cargo build")?;
 
-    Ok(())
+    Ok(status.success())
 }
 
 fn run_binary(verbose: bool, release: bool, launch: bool) -> Result<()> {
-    build_binary(verbose, release)?;
+
+    if !build_binary(verbose, release)? {
+        return Ok(());
+    }
 
     let mut args = vec!["build", "--target", "x86_64-unknown-fuchsia"];
     if release {
@@ -284,8 +290,9 @@ fn run() -> Result<()> {
     }
 
     if let Some(build_matches) = matches.subcommand_matches("build") {
-        return build_binary(verbose, build_matches.is_present("release"))
-            .chain_err(|| "building binary failed");
+        build_binary(verbose, build_matches.is_present("release"))
+            .chain_err(|| "building binary failed")?;
+        return Ok(());
     }
 
     if let Some(run_matches) = matches.subcommand_matches("run") {
@@ -297,10 +304,10 @@ fn run() -> Result<()> {
 
     if let Some(build_test_matches) = matches.subcommand_matches("build-tests") {
         let test_target = build_test_matches.value_of("test").unwrap_or("").to_string();
-        return build_tests(verbose,
-                           build_test_matches.is_present("release"),
-                           &test_target)
-            .chain_err(|| "building tests failed");
+        build_tests(verbose,
+                    build_test_matches.is_present("release"),
+                    &test_target).chain_err(|| "building tests failed")?;
+        return Ok(());
     }
 
     if let Some(start_matches) = matches.subcommand_matches("start") {
