@@ -38,9 +38,9 @@ mod errors {
 use errors::*;
 
 use cargo_interop::Artifact;
-use clap::{App, Arg, SubCommand};
+use clap::{App, AppSettings, Arg, SubCommand};
 use device::{netaddr, scp_to_device, ssh, start_emulator, stop_emulator};
-use sdk::{rust_c_path, rust_linker_path};
+use sdk::{rust_c_path, rust_linker_path, TargetOptions};
 use std::path::PathBuf;
 use std::process::Command;
 use std::str;
@@ -49,6 +49,7 @@ use utils::strip_binary;
 
 fn run_programs_on_target(programs: &Vec<String>,
                           verbose: bool,
+                          target_options: &TargetOptions,
                           launch: bool,
                           params: &[String])
                           -> Result<()> {
@@ -63,7 +64,11 @@ fn run_programs_on_target(programs: &Vec<String>,
         println!("copying {} to {}",
                  source_path.to_string_lossy(),
                  destination_path);
-        scp_to_device(verbose, &netaddr, &stripped_source_path, &destination_path)?;
+        scp_to_device(verbose,
+                      &target_options,
+                      &netaddr,
+                      &stripped_source_path,
+                      &destination_path)?;
         let mut command_string = (if launch { "launch " } else { "" }).to_string();
         command_string.push_str(&destination_path);
         for param in params {
@@ -74,7 +79,7 @@ fn run_programs_on_target(programs: &Vec<String>,
         if verbose {
             println!("running {}", command_string);
         }
-        ssh(verbose, &command_string)?
+        ssh(verbose, &target_options, &command_string)?
     }
     Ok(())
 }
@@ -102,7 +107,11 @@ fn programs_from_artifacts<F>(verbose: bool, artifacts_text: &str, filter: F) ->
 }
 
 
-fn build_tests(verbose: bool, release: bool, test_target: &String) -> Result<bool> {
+fn build_tests(verbose: bool,
+               release: bool,
+               target_options: &TargetOptions,
+               test_target: &String)
+               -> Result<bool> {
     if verbose {
         println!("# build tests phase 1");
     }
@@ -120,7 +129,7 @@ fn build_tests(verbose: bool, release: bool, test_target: &String) -> Result<boo
 
     let status = Command::new("cargo").env("RUSTC", rust_c_path()?.to_str().unwrap())
         .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
-             rust_linker_path()?.to_str().unwrap())
+             rust_linker_path(&target_options)?.to_str().unwrap())
         .args(args)
         .status()
         .chain_err(|| "Unable to run cargo test")?;
@@ -130,11 +139,12 @@ fn build_tests(verbose: bool, release: bool, test_target: &String) -> Result<boo
 
 fn run_tests(verbose: bool,
              release: bool,
+             target_options: &TargetOptions,
              test_target: &String,
              params: &Vec<String>)
              -> Result<()> {
 
-    if !build_tests(verbose, release, test_target)? {
+    if !build_tests(verbose, release, &target_options, test_target)? {
         return Ok(());
     }
 
@@ -159,7 +169,7 @@ fn run_tests(verbose: bool,
 
     let output = Command::new("cargo").env("RUSTC", rust_c_path()?.to_str().unwrap())
         .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
-             rust_linker_path()?.to_str().unwrap())
+             rust_linker_path(&target_options)?.to_str().unwrap())
         .args(args)
         .output()
         .chain_err(|| "Unable to run cargo test")?;
@@ -167,10 +177,10 @@ fn run_tests(verbose: bool,
     let artifacts = str::from_utf8(&output.stdout).unwrap();
     let programs = programs_from_artifacts(verbose, artifacts, |artifact| artifact.profile.test);
 
-    run_programs_on_target(&programs, verbose, false, &params)
+    run_programs_on_target(&programs, verbose, &target_options, false, &params)
 }
 
-fn build_binary(verbose: bool, release: bool) -> Result<(bool)> {
+fn build_binary(verbose: bool, release: bool, target_options: &TargetOptions) -> Result<(bool)> {
     if verbose {
         println!("# build binary phase 1");
     }
@@ -182,7 +192,7 @@ fn build_binary(verbose: bool, release: bool) -> Result<(bool)> {
 
     let status = Command::new("cargo").env("RUSTC", rust_c_path()?.to_str().unwrap())
         .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
-             rust_linker_path()?.to_str().unwrap())
+             rust_linker_path(&target_options)?.to_str().unwrap())
         .args(args)
         .status()
         .chain_err(|| "Unable to run cargo build")?;
@@ -190,9 +200,13 @@ fn build_binary(verbose: bool, release: bool) -> Result<(bool)> {
     Ok(status.success())
 }
 
-fn run_binary(verbose: bool, release: bool, launch: bool) -> Result<()> {
+fn run_binary(verbose: bool,
+              release: bool,
+              launch: bool,
+              target_options: &TargetOptions)
+              -> Result<()> {
 
-    if !build_binary(verbose, release)? {
+    if !build_binary(verbose, release, &target_options)? {
         return Ok(());
     }
 
@@ -202,7 +216,7 @@ fn run_binary(verbose: bool, release: bool, launch: bool) -> Result<()> {
     }
     let output = Command::new("cargo").env("RUSTC", rust_c_path()?.to_str().unwrap())
         .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
-             rust_linker_path()?.to_str().unwrap())
+             rust_linker_path(&target_options)?.to_str().unwrap())
         .args(args)
         .arg("--message-format")
         .arg("JSON")
@@ -214,15 +228,19 @@ fn run_binary(verbose: bool, release: bool, launch: bool) -> Result<()> {
         artifact.target.kind.contains(&"bin".to_string())
     });
 
-    run_programs_on_target(&programs, verbose, launch, &[])
+    run_programs_on_target(&programs, verbose, &target_options, launch, &[])
 }
 
 fn run() -> Result<()> {
     let matches = App::new("fargo")
         .version("v0.1.0")
+        .setting(AppSettings::GlobalVersion)
         .arg(Arg::with_name("verbose")
             .short("v")
             .help("Print verbose output while performing commands"))
+        .arg(Arg::with_name("debug-os")
+            .long("debug-os")
+            .help("Use debug user.bootfs and ssh keys"))
         .subcommand(SubCommand::with_name("build-tests")
             .about("Build for Fuchsia device or emulator")
             .arg(Arg::with_name("test")
@@ -278,27 +296,31 @@ fn run() -> Result<()> {
         .get_matches();
 
     let verbose = matches.is_present("verbose");
+    let target_options = TargetOptions::new(!matches.is_present("debug-os"));
 
     if let Some(test_matches) = matches.subcommand_matches("test") {
         let test_params = test_matches.values_of_lossy("test_params").unwrap_or(vec![]);
         let test_target = test_matches.value_of("test").unwrap_or("").to_string();
         return run_tests(verbose,
                          test_matches.is_present("release"),
+                         &target_options,
                          &test_target,
                          &test_params)
             .chain_err(|| "running tests failed");
     }
 
     if let Some(build_matches) = matches.subcommand_matches("build") {
-        build_binary(verbose, build_matches.is_present("release"))
-            .chain_err(|| "building binary failed")?;
+        build_binary(verbose,
+                     build_matches.is_present("release"),
+                     &target_options).chain_err(|| "building binary failed")?;
         return Ok(());
     }
 
     if let Some(run_matches) = matches.subcommand_matches("run") {
         return run_binary(verbose,
                           run_matches.is_present("release"),
-                          run_matches.is_present("launch"))
+                          run_matches.is_present("launch"),
+                          &target_options)
             .chain_err(|| "running binary failed");
     }
 
@@ -306,12 +328,13 @@ fn run() -> Result<()> {
         let test_target = build_test_matches.value_of("test").unwrap_or("").to_string();
         build_tests(verbose,
                     build_test_matches.is_present("release"),
+                    &target_options,
                     &test_target).chain_err(|| "building tests failed")?;
         return Ok(());
     }
 
     if let Some(start_matches) = matches.subcommand_matches("start") {
-        return start_emulator(start_matches.is_present("graphics"))
+        return start_emulator(start_matches.is_present("graphics"), &target_options)
             .chain_err(|| "starting emulator failed");
     }
 
@@ -322,12 +345,12 @@ fn run() -> Result<()> {
     if let Some(restart_matches) = matches.subcommand_matches("restart") {
         stop_emulator().chain_err(|| "in restart, stopping emulator failed")?;
 
-        return start_emulator(restart_matches.is_present("graphics"))
+        return start_emulator(restart_matches.is_present("graphics"), &target_options)
             .chain_err(|| "in restart, starting emulator failed");
     }
 
     if let Some(_) = matches.subcommand_matches("ssh") {
-        return ssh(verbose, "").chain_err(|| "ssh failed");
+        return ssh(verbose, &target_options, "").chain_err(|| "ssh failed");
     }
 
     if let Some(update_matches) = matches.subcommand_matches("update-crates") {

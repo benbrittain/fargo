@@ -6,7 +6,7 @@ use std::env;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::str;
-use sdk::fuchsia_root;
+use sdk::{fuchsia_root, target_out_dir, TargetOptions};
 use utils::is_mac;
 
 error_chain!{
@@ -31,13 +31,16 @@ pub fn netaddr(verbose: bool) -> Result<String> {
 }
 
 pub fn scp_to_device(verbose: bool,
+                     target_options: &TargetOptions,
                      netaddr: &String,
                      source_path: &PathBuf,
                      destination_path: &String)
                      -> Result<()> {
     let destination_with_address = format!("[{}]:{}", netaddr, destination_path);
-    let fuchsia_root = fuchsia_root()?;
-    let ssh_config = fuchsia_root.join("out/debug-x86-64/ssh-keys/ssh_config");
+    let ssh_config = target_out_dir(&target_options)?.join("ssh-keys/ssh_config");
+    if !ssh_config.exists() {
+        bail!("ssh config not found at {:?}", ssh_config);
+    }
     let ssh_result = Command::new("scp").arg(if verbose { "-v" } else { "-q" })
         .arg("-F")
         .arg(ssh_config)
@@ -53,10 +56,12 @@ pub fn scp_to_device(verbose: bool,
     Ok(())
 }
 
-pub fn ssh(verbose: bool, command: &str) -> Result<()> {
+pub fn ssh(verbose: bool, target_options: &TargetOptions, command: &str) -> Result<()> {
     let netaddr = netaddr(verbose)?;
-    let fuchsia_root = fuchsia_root()?;
-    let ssh_config = fuchsia_root.join("out/debug-x86-64/ssh-keys/ssh_config");
+    let ssh_config = target_out_dir(&target_options)?.join("ssh-keys/ssh_config");
+    if !ssh_config.exists() {
+        bail!("ssh config not found at {:?}", ssh_config);
+    }
     let ssh_result = Command::new("ssh").arg("-q")
         .arg("-F")
         .arg(ssh_config)
@@ -72,10 +77,16 @@ pub fn ssh(verbose: bool, command: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn start_emulator(with_graphics: bool) -> Result<()> {
+pub fn start_emulator(with_graphics: bool, target_options: &TargetOptions) -> Result<()> {
     let fuchsia_root = fuchsia_root()?;
     let run_magenta_script = fuchsia_root.join("scripts/run-magenta-x86-64");
-    let user_bootfs = fuchsia_root.join("out/debug-x86-64/user.bootfs");
+    if !run_magenta_script.exists() {
+        bail!("run magenta script not found at {:?}", run_magenta_script);
+    }
+    let user_bootfs = target_out_dir(&target_options)?.join("user.bootfs");
+    if !user_bootfs.exists() {
+        bail!("user.bootfs not found at {:?}", user_bootfs);
+    }
     let user_bootfs_str = user_bootfs.to_str().unwrap();
     let mut args = vec!["-N", "-x", user_bootfs_str];
     if with_graphics {
