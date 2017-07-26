@@ -132,7 +132,7 @@ fn look_for_crates(dir: &Path, root: &Path, target: &Path) -> io::Result<()> {
     Ok(())
 }
 
-pub fn update_crates(target: &String) -> Result<()> {
+pub fn update_crates(target: &str) -> Result<()> {
     let gen_root = fuchsia_root()?.join("out/debug-x86-64/gen");
     let crate_sources = vec!["application", "apps/mozart", "apps/ledger", "apps/modular"];
     for one_source in crate_sources {

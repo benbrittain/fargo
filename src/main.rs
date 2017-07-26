@@ -14,7 +14,6 @@ extern crate serde_json;
 extern crate toml;
 extern crate uname;
 
-mod cargo_interop;
 mod device;
 mod sdk;
 mod utils;
@@ -37,167 +36,91 @@ mod errors {
 
 use errors::*;
 
-use cargo_interop::Artifact;
 use clap::{App, AppSettings, Arg, SubCommand};
 use device::{netaddr, scp_to_device, ssh, start_emulator, stop_emulator};
 use sdk::{rust_c_path, rust_linker_path, TargetOptions};
 use std::path::PathBuf;
 use std::process::Command;
-use std::str;
+use std::fs;
 use update_crates::update_crates;
 use utils::strip_binary;
 
-fn run_programs_on_target(programs: &Vec<String>,
-                          verbose: bool,
-                          target_options: &TargetOptions,
-                          launch: bool,
-                          params: &[String])
-                          -> Result<()> {
+fn run_program_on_target(filename: &str,
+                         verbose: bool,
+                         target_options: &TargetOptions,
+                         launch: bool,
+                         params: &[&str])
+                         -> Result<()> {
     let netaddr = netaddr(verbose)?;
-    for filename in programs {
-        let source_path = PathBuf::from(&filename);
-        let stripped_source_path = strip_binary(&source_path)?;
-        let destination_path = format!("/tmp/{}",
-                                       stripped_source_path.file_name()
-                                           .unwrap()
-                                           .to_string_lossy());
-        println!("copying {} to {}",
-                 source_path.to_string_lossy(),
-                 destination_path);
-        scp_to_device(verbose,
-                      &target_options,
-                      &netaddr,
-                      &stripped_source_path,
-                      &destination_path)?;
-        let mut command_string = (if launch { "launch " } else { "" }).to_string();
-        command_string.push_str(&destination_path);
-        for param in params {
-            command_string.push(' ');
-            command_string.push_str(param);
-        }
-
-        if verbose {
-            println!("running {}", command_string);
-        }
-        ssh(verbose, &target_options, &command_string)?
+    if verbose {
+        println!("netaddr {}", netaddr);
     }
+    let source_path = PathBuf::from(&filename);
+    let stripped_source_path = strip_binary(&source_path)?;
+    let destination_path = format!("/tmp/{}",
+                                   stripped_source_path.file_name()
+                                       .unwrap()
+                                       .to_string_lossy());
+    println!("copying {} to {}",
+             source_path.to_string_lossy(),
+             destination_path);
+    scp_to_device(verbose,
+                  &target_options,
+                  &netaddr,
+                  &stripped_source_path,
+                  &destination_path)?;
+    let mut command_string = (if launch { "launch " } else { "" }).to_string();
+    command_string.push_str(&destination_path);
+    for param in params {
+        command_string.push(' ');
+        command_string.push_str(param);
+    }
+
+    if verbose {
+        println!("running {}", command_string);
+    }
+    ssh(verbose, &target_options, &command_string)?;
     Ok(())
 }
-
-fn programs_from_artifacts<F>(verbose: bool, artifacts_text: &str, filter: F) -> Vec<String>
-    where F: Fn(&Artifact) -> bool
-{
-    let mut programs = vec![];
-    let artifacts = artifacts_text.trim().split('\n');
-    for artifact_line in artifacts {
-        if verbose {
-            println!("# {}", artifact_line);
-        }
-        let artifact: Artifact = serde_json::from_str(&artifact_line).unwrap();
-        if verbose {
-            println!("# {:?}", artifact);
-        }
-        if filter(&artifact) {
-            for filename in artifact.filenames {
-                programs.push(filename);
-            }
-        }
-    }
-    programs
-}
-
 
 fn build_tests(verbose: bool,
                release: bool,
                target_options: &TargetOptions,
-               test_target: &String)
+               test_target: &str)
                -> Result<bool> {
-    if verbose {
-        println!("# build tests phase 1");
-    }
-
-    let mut args = vec!["test", "--target", "x86_64-unknown-fuchsia", "--no-run"];
-
-    if release {
-        args.push("--release");
-    }
-
-    if test_target.len() > 0 {
-        args.push("--test");
-        args.push(test_target.as_str());
-    }
-
-    let status = Command::new("cargo").env("RUSTC", rust_c_path()?.to_str().unwrap())
-        .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
-             rust_linker_path(&target_options)?.to_str().unwrap())
-        .args(args)
-        .status()
-        .chain_err(|| "Unable to run cargo test")?;
-
-    Ok(status.success())
+    run_tests(verbose, release, true, target_options, test_target, &vec![])?;
+    Ok(true)
 }
 
 fn run_tests(verbose: bool,
              release: bool,
+             no_run: bool,
              target_options: &TargetOptions,
-             test_target: &String,
-             params: &Vec<String>)
+             test_target: &str,
+             params: &[&str])
              -> Result<()> {
 
-    if !build_tests(verbose, release, &target_options, test_target)? {
-        return Ok(());
-    }
-
-    if verbose {
-        println!("# build tests phase 2");
-    }
-    let mut args = vec!["test",
-                        "--target",
-                        "x86_64-unknown-fuchsia",
-                        "-q",
-                        "--no-run",
-                        "--message-format",
-                        "JSON"];
-    if release {
-        args.push("--release");
-    }
+    let mut args = vec!["test"];
 
     if test_target.len() > 0 {
         args.push("--test");
-        args.push(test_target.as_str());
+        args.push(test_target);
     }
 
-    let output = Command::new("cargo").env("RUSTC", rust_c_path()?.to_str().unwrap())
-        .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
-             rust_linker_path(&target_options)?.to_str().unwrap())
-        .args(args)
-        .output()
-        .chain_err(|| "Unable to run cargo test")?;
+    if no_run {
+        args.push("--no-run");
+    }
 
-    let artifacts = str::from_utf8(&output.stdout).unwrap();
-    let programs = programs_from_artifacts(verbose, artifacts, |artifact| artifact.profile.test);
+    for param in params {
+        args.push(param);
+    }
 
-    run_programs_on_target(&programs, verbose, &target_options, false, &params)
+    run_cargo(verbose, release, false, &args, &target_options)?;
+    Ok(())
 }
 
 fn build_binary(verbose: bool, release: bool, target_options: &TargetOptions) -> Result<(bool)> {
-    if verbose {
-        println!("# build binary phase 1");
-    }
-
-    let mut args = vec!["build", "--target", "x86_64-unknown-fuchsia"];
-    if release {
-        args.push("--release");
-    }
-
-    let status = Command::new("cargo").env("RUSTC", rust_c_path()?.to_str().unwrap())
-        .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
-             rust_linker_path(&target_options)?.to_str().unwrap())
-        .args(args)
-        .status()
-        .chain_err(|| "Unable to run cargo build")?;
-
-    Ok(status.success())
+    run_cargo(verbose, release, false, &vec!["build"], &target_options)
 }
 
 fn run_binary(verbose: bool,
@@ -205,31 +128,46 @@ fn run_binary(verbose: bool,
               launch: bool,
               target_options: &TargetOptions)
               -> Result<()> {
+    run_cargo(verbose, release, launch, &vec!["run"], &target_options)?;
+    return Ok(());
+}
 
-    if !build_binary(verbose, release, &target_options)? {
-        return Ok(());
-    }
+fn run_cargo(verbose: bool,
+             release: bool,
+             launch: bool,
+             args: &[&str],
+             target_options: &TargetOptions)
+             -> Result<(bool)> {
+    let mut target_args = vec!["--target", "x86_64-unknown-fuchsia"];
 
-    let mut args = vec!["build", "--target", "x86_64-unknown-fuchsia"];
     if release {
-        args.push("--release");
+        target_args.push("--release");
     }
-    let output = Command::new("cargo").env("RUSTC", rust_c_path()?.to_str().unwrap())
+
+    if verbose {
+        println!("target_args = {:?}", target_args);
+    }
+
+    let fargo_path = fs::canonicalize(std::env::current_exe()?)?;
+
+    let fargo_command = if launch {
+        format!("{} run-on-target --launch", fargo_path.to_str().unwrap())
+    } else {
+        format!("{} run-on-target", fargo_path.to_str().unwrap())
+    };
+
+    let status = Command::new("cargo").env("RUSTC", rust_c_path()?.to_str().unwrap())
         .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
              rust_linker_path(&target_options)?.to_str().unwrap())
+        .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_RUNNER", fargo_command)
         .args(args)
-        .arg("--message-format")
-        .arg("JSON")
-        .output()
-        .chain_err(|| "Unable to run cargo build")?;
+        .args(target_args)
+        .status()
+        .chain_err(|| "Unable to run cargo")?;
 
-    let artifacts = str::from_utf8(&output.stdout).unwrap();
-    let programs = programs_from_artifacts(verbose, artifacts, |artifact| {
-        artifact.target.kind.contains(&"bin".to_string())
-    });
-
-    run_programs_on_target(&programs, verbose, &target_options, launch, &[])
+    Ok(status.success())
 }
+
 
 fn run() -> Result<()> {
     let matches = App::new("fargo")
@@ -286,23 +224,37 @@ fn run() -> Result<()> {
                 .help("Start a simulator with graphics enabled")))
         .subcommand(SubCommand::with_name("ssh")
             .about("Open a shell on Fuchsia device or emulator"))
+        .subcommand(SubCommand::with_name("cargo")
+            .about("Run a cargo command for Fuchsia. Use -- to indicate that all \
+                         following arguments should be passed to cargo.")
+            .arg(Arg::with_name("cargo_params").index(1).multiple(true)))
+        .subcommand(SubCommand::with_name("run-on-target")
+            .about("Act as a test runner for cargo")
+            .arg(Arg::with_name("launch")
+                .long("launch")
+                .help("Use launch to run binary."))
+            .arg(Arg::with_name("run_on_target_params").index(1).multiple(true))
+            .setting(AppSettings::Hidden))
         .subcommand(SubCommand::with_name("update-crates")
             .about("Update the FIDL generated crates")
             .arg(Arg::with_name("target")
                 .long("target")
                 .value_name("target")
                 .required(true)
-                .help("Target directory for updated crates")))
+                .help("Target directory for updated crates"))
+            .setting(AppSettings::Hidden))
         .get_matches();
 
     let verbose = matches.is_present("verbose");
     let target_options = TargetOptions::new(!matches.is_present("debug-os"));
 
     if let Some(test_matches) = matches.subcommand_matches("test") {
-        let test_params = test_matches.values_of_lossy("test_params").unwrap_or(vec![]);
-        let test_target = test_matches.value_of("test").unwrap_or("").to_string();
+        let test_params =
+            test_matches.values_of("test_params").map(|x| x.collect()).unwrap_or(vec![]);
+        let test_target = test_matches.value_of("test").unwrap_or("");
         return run_tests(verbose,
                          test_matches.is_present("release"),
+                         false,
                          &target_options,
                          &test_target,
                          &test_params)
@@ -325,7 +277,7 @@ fn run() -> Result<()> {
     }
 
     if let Some(build_test_matches) = matches.subcommand_matches("build-tests") {
-        let test_target = build_test_matches.value_of("test").unwrap_or("").to_string();
+        let test_target = build_test_matches.value_of("test").unwrap_or("");
         build_tests(verbose,
                     build_test_matches.is_present("release"),
                     &target_options,
@@ -353,8 +305,24 @@ fn run() -> Result<()> {
         return ssh(verbose, &target_options, "").chain_err(|| "ssh failed");
     }
 
+    if let Some(cargo_matches) = matches.subcommand_matches("cargo") {
+        let cargo_params =
+            cargo_matches.values_of("cargo_params").map(|x| x.collect()).unwrap_or(vec![]);
+        run_cargo(verbose, false, false, &cargo_params,
+            &target_options).chain_err(|| "run cargo failed")?;
+        return Ok(());
+    }
+
+    if let Some(run_on_target_matches) = matches.subcommand_matches("run-on-target") {
+        let run_params = run_on_target_matches.values_of("run_on_target_params")
+            .map(|x| x.collect())
+            .unwrap_or(vec![]);
+        let (program, args) = run_params.split_first().unwrap();
+        return run_program_on_target(&program, verbose, &target_options, false, &args);
+    }
+
     if let Some(update_matches) = matches.subcommand_matches("update-crates") {
-        let update_target = update_matches.value_of("target").unwrap().to_string();
+        let update_target = update_matches.value_of("target").unwrap();
         return update_crates(&update_target).chain_err(|| "update-crates failed");
     }
 

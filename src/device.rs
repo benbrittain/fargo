@@ -32,9 +32,9 @@ pub fn netaddr(verbose: bool) -> Result<String> {
 
 pub fn scp_to_device(verbose: bool,
                      target_options: &TargetOptions,
-                     netaddr: &String,
+                     netaddr: &str,
                      source_path: &PathBuf,
-                     destination_path: &String)
+                     destination_path: &str)
                      -> Result<()> {
     let destination_with_address = format!("[{}]:{}", netaddr, destination_path);
     let ssh_config = target_out_dir(&target_options)?.join("ssh-keys/ssh_config");
