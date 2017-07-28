@@ -74,8 +74,7 @@ freenode is the best bet.
 
 For fargo itself, that IRC channel can also work of one of the more Rust-aware
 folks happens to be paying attention. More reliable is the
-[rust-fuchsia](https://groups.google.com/a/fuchsia.com/forum/#!aboutgroup/rust-f
-uchsia) Google group.
+[rust-fuchsia](https://groups.google.com/a/fuchsia.com/forum/#!aboutgroup/rust-fuchsia) Google group.
 
 ## Fargo Roadmap
 
