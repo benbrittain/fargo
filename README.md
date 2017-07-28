@@ -30,11 +30,19 @@ The `fargo-test` directory contains something one can use to test-drive.
 
 ## Getting Started
 
-Since at the moment fargo requires the FUCHSIA\_ROOT environmental variable be set to the path to a Fuchsia **release** build, the first step is to build Fuchsia.
+Since at the moment fargo requires the FUCHSIA\_ROOT environmental variable be
+set to the path to a Fuchsia **release** build, the first step is to build
+Fuchsia.
 
-The [Fuchsia Getting Started](https://fuchsia.googlesource.com/docs/+/HEAD/getting_started.md) instruction are what you need. Since a release build is what fargo expects to find you'll want to pass --release to fset. The Rust components that fargo needs to cross compile are also not built by default, so you'll have to select something other than the default modules.
+The [Fuchsia Getting
+Started](https://fuchsia.googlesource.com/docs/+/HEAD/getting_started.md)
+instruction are what you need. Since a release build is what fargo expects to
+find you'll want to pass --release to fset. The Rust components that fargo
+needs to cross compile are also not built by default, so you'll have to select
+something other than the default modules.
 
-If you are planning to use Qemu to run your Fuchsia Rust code, a good choice for modules is below, in env.sh form or underlying script as one prefers.
+If you are planning to use Qemu to run your Fuchsia Rust code, a good choice
+for modules is below, in env.sh form or underlying script as one prefers.
 
     fset x86-64 --release --modules boot_headless,rust
 
@@ -42,7 +50,12 @@ or
 
     packages/gn/gen.py -m boot_headless,rust --release
 
-What `boot_headless` does in this instance is prevent the user shell from being launched after boot. Since the user shell requires [Mozart](https://fuchsia.googlesource.com/mozart), and Mozart has a hard dependency on the [Vulkan graphics and compute API](https://www.khronos.org/vulkan), *and* Qemu cannot support Vulkan, `boot_headless` is pretty much a requirement for Qemu.
+What `boot_headless` does in this instance is prevent the user shell from being
+launched after boot. Since the user shell requires
+[Mozart](https://fuchsia.googlesource.com/mozart), and Mozart has a hard
+dependency on the [Vulkan graphics and compute
+API](https://www.khronos.org/vulkan), *and* Qemu cannot support Vulkan,
+`boot_headless` is pretty much a requirement for Qemu.
 
 Once this build is complete, clone and build fargo.
 
@@ -50,14 +63,23 @@ Once this build is complete, clone and build fargo.
     cd fargo
     cargo install
 
+Fargo uses ssh to communicate between your host computer and either Qemu or a
+real device to copy build results and execute them. For Qemu there is a bit of
+[tricky set up](https://fuchsia.googlesource.com/magenta/+/master/docs/qemu.md#Enabling-Networking-under-QEMU-x86_64-only) to do.
+
 ## Getting Help
 
-For problems getting the Fuchsia build to complete, the #fuchsia IRC channel on freenode is the best bet.
+For problems getting the Fuchsia build to complete, the #fuchsia IRC channel on
+freenode is the best bet.
 
-For fargo itself, that IRC channel can also work of one of the more Rust-aware folks happens to be paying attention. More reliable is the [rust-fuchsia](https://groups.google.com/a/fuchsia.com/forum/#!aboutgroup/rust-fuchsia) Google group.
+For fargo itself, that IRC channel can also work of one of the more Rust-aware
+folks happens to be paying attention. More reliable is the
+[rust-fuchsia](https://groups.google.com/a/fuchsia.com/forum/#!aboutgroup/rust-f
+uchsia) Google group.
 
 ## Fargo Roadmap
 
 The goal is to transition fargo to using something like an SDK instead.
 
-Currently fargo does not support building artifacts that need additional libraries.
+Currently fargo does not support building artifacts that need additional
+libraries.
