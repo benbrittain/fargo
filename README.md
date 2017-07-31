@@ -67,6 +67,24 @@ Fargo uses ssh to communicate between your host computer and either Qemu or a
 real device to copy build results and execute them. For Qemu there is a bit of
 [tricky set up](https://fuchsia.googlesource.com/magenta/+/master/docs/qemu.md#Enabling-Networking-under-QEMU-x86_64-only) to do.
 
+### Testing If Fargo Is working
+
+Now to verify if fargo is working correctly, try starting a fuchsia machine and executing a test.
+
+    fargo start
+    cd fargo/fargo-test
+    fargo test
+
+If all is well, you should see a successful test pass just as if you had ran cargo test on any other
+rust project.
+
+Do note that fargo does not check the fuchsia target env var. Meaning `fargo start` will start a fuchsia
+server using x86-64-release unless you pass it the --debug-os option, in which case it will use the
+debug build. So make sure you use a fuchsia target you built with the rust module enabled.
+
+Additionally, if you are using qemu you need to enable networking, otherwise fargo won't be able to
+copy the binary onto then fuchsia machine to run the tests.
+
 ## Getting Help
 
 For problems getting the Fuchsia build to complete, the #fuchsia IRC channel on
