@@ -150,22 +150,39 @@ fn run_cargo(verbose: bool,
 
     let fargo_path = fs::canonicalize(std::env::current_exe()?)?;
 
-    let fargo_command = if launch {
-        format!("{} run-on-target --launch", fargo_path.to_str().unwrap())
-    } else {
-        format!("{} run-on-target", fargo_path.to_str().unwrap())
-    };
+    let mut runner_args = vec![fargo_path.to_str()
+                                   .ok_or_else(|| "unable to convert path to utf8 encoding")?];
 
-    let status = Command::new("cargo").env("RUSTC", rust_c_path()?.to_str().unwrap())
+    if verbose {
+        runner_args.push("-v");
+    }
+
+    runner_args.push("run-on-target");
+
+    if launch {
+        runner_args.push("--launch");
+    }
+
+    let fargo_command = runner_args.join(" ");
+
+    if verbose {
+        println!("fargo_command: {:?}", fargo_command);
+    }
+
+    let mut cmd = Command::new("cargo");
+
+    cmd.env("RUSTC", rust_c_path()?.to_str().unwrap())
         .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
              rust_linker_path(&target_options)?.to_str().unwrap())
         .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_RUNNER", fargo_command)
         .args(args)
-        .args(target_args)
-        .status()
-        .chain_err(|| "Unable to run cargo")?;
+        .args(target_args);
 
-    Ok(status.success())
+    if verbose {
+        println!("cargo cmd: {:?}", cmd);
+    }
+
+    cmd.status().chain_err(|| "Unable to run cargo").map(|s| s.success())
 }
 
 

@@ -41,16 +41,29 @@ pub fn scp_to_device(verbose: bool,
     if !ssh_config.exists() {
         bail!("ssh config not found at {:?}", ssh_config);
     }
-    let ssh_result = Command::new("scp").arg(if verbose { "-v" } else { "-q" })
+    if verbose {
+        println!("destination_with_address = {}", destination_with_address);
+        println!("ssh_config = {:?}", ssh_config);
+    }
+
+    let mut scp_command = Command::new("scp");
+
+    scp_command.arg(if verbose { "-v" } else { "-q" })
         .arg("-F")
         .arg(ssh_config)
+        .args(&["-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no"])
         .arg(source_path)
-        .arg(destination_with_address)
-        .status()
+        .arg(destination_with_address);
+
+    if verbose {
+        println!("{:?}", scp_command);
+    }
+
+    let scp_result = scp_command.status()
         .chain_err(|| "unable to run scp")?;
 
-    if !ssh_result.success() {
-        bail!("scp failed with error {:?}", ssh_result);
+    if !scp_result.success() {
+        bail!("scp failed with error {:?}", scp_result);
     }
 
     Ok(())
@@ -65,6 +78,7 @@ pub fn ssh(verbose: bool, target_options: &TargetOptions, command: &str) -> Resu
     let ssh_result = Command::new("ssh").arg("-q")
         .arg("-F")
         .arg(ssh_config)
+        .args(&["-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no"])
         .arg(netaddr)
         .arg(command)
         .status()
