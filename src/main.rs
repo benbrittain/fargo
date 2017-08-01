@@ -83,6 +83,48 @@ fn run_program_on_target(filename: &str,
     Ok(())
 }
 
+extern crate notify;
+
+use notify::{RecommendedWatcher, Watcher, RecursiveMode};
+use std::sync::mpsc::channel;
+use std::time::Duration;
+
+fn autotest(verbose: bool, release: bool, target_options: &TargetOptions) -> Result<()> {
+    let (tx, rx) = channel();
+    let mut watcher: RecommendedWatcher = Watcher::new(tx, Duration::from_secs(1)).chain_err(
+        || "autotest: watcher creation failed",
+    )?;
+
+    let cwd = std::fs::canonicalize(std::env::current_dir()?).chain_err(
+        || "autotest: canonicalize working directory",
+    )?;
+    let tgt = cwd.join("target");
+    let git = cwd.join(".git");
+
+    watcher.watch(&cwd, RecursiveMode::Recursive).chain_err(
+        || "autotest: watch failed",
+    )?;
+
+    println!("autotest: started");
+    loop {
+        let event =  rx.recv().chain_err(|| "autotest: watch error" )?;
+        match event {
+            notify::DebouncedEvent::Create(path) |
+            notify::DebouncedEvent::Write(path) |
+            notify::DebouncedEvent::Chmod(path) |
+            notify::DebouncedEvent::Remove(path) |
+            notify::DebouncedEvent::Rename(path, _) => {
+                // TODO(raggi): provide a fuller ignore flag/pattern match solution here.
+                if !path.starts_with(&tgt) && !path.starts_with(&git) {
+                    println!("autotest: running tests because {:?}", path);
+                    run_tests(verbose, release, false, target_options, "", &vec![]).ok();
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 fn build_tests(verbose: bool,
                release: bool,
                target_options: &TargetOptions,
@@ -196,6 +238,11 @@ fn run() -> Result<()> {
         .arg(Arg::with_name("debug-os")
             .long("debug-os")
             .help("Use debug user.bootfs and ssh keys"))
+        .subcommand(SubCommand::with_name("autotest"))
+            .about("Auto build and test in Fuchsia device or emulator")
+            .arg(Arg::with_name("release")
+                .long("release")
+                .help("Build release"))
         .subcommand(SubCommand::with_name("build-tests")
             .about("Build for Fuchsia device or emulator")
             .arg(Arg::with_name("test")
@@ -264,6 +311,10 @@ fn run() -> Result<()> {
 
     let verbose = matches.is_present("verbose");
     let target_options = TargetOptions::new(!matches.is_present("debug-os"));
+
+    if let Some(autotest_matches) = matches.subcommand_matches("autotest") {
+        return autotest(verbose, autotest_matches.is_present("release"), &target_options);
+    }
 
     if let Some(test_matches) = matches.subcommand_matches("test") {
         let test_params =
