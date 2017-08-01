@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 use std::env;
-use std::path::PathBuf;
+use std::path::{PathBuf, Path};
 use std::process::{Command, Stdio};
 use std::str;
 use sdk::{fuchsia_root, target_out_dir, TargetOptions};
@@ -91,7 +91,12 @@ pub fn ssh(verbose: bool, target_options: &TargetOptions, command: &str) -> Resu
     Ok(())
 }
 
-pub fn start_emulator(with_graphics: bool, target_options: &TargetOptions) -> Result<()> {
+
+pub fn start_emulator(
+    with_graphics: bool,
+    with_networking: bool,
+    target_options: &TargetOptions,
+) -> Result<()> {
     let fuchsia_root = fuchsia_root()?;
     let run_magenta_script = fuchsia_root.join("scripts/run-magenta-x86-64");
     if !run_magenta_script.exists() {
@@ -107,7 +112,8 @@ pub fn start_emulator(with_graphics: bool, target_options: &TargetOptions) -> Re
         args.push("-g");
     }
 
-    let child = Command::new(run_magenta_script).args(&args)
+    let child = Command::new(run_magenta_script)
+        .args(&args)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
@@ -115,16 +121,19 @@ pub fn start_emulator(with_graphics: bool, target_options: &TargetOptions) -> Re
 
     println!("emulator started with process ID {}", child.id());
 
+    if !with_networking {
+        return Ok(());
+    }
+
+    let user = env::var("USER").chain_err(|| "No $USER env var found.")?;
     if is_mac() {
-
-        let user = env::var("USER").unwrap();
-
         // TODO; Poll for /dev/tap0 as it can take a while for the emulator
         //       to create it.
 
         println!("Calling sudo ifconfig to bring up tap0 interface; password may be required.");
 
-        let chown_status = Command::new("sudo").arg("chown")
+        let chown_status = Command::new("sudo")
+            .arg("chown")
             .arg(user)
             .arg("/dev/tap0")
             .status()
@@ -134,7 +143,8 @@ pub fn start_emulator(with_graphics: bool, target_options: &TargetOptions) -> Re
             bail!("chown failed: {}", chown_status);
         }
 
-        let ifconfig_status = Command::new("sudo").arg("ifconfig")
+        let ifconfig_status = Command::new("sudo")
+            .arg("ifconfig")
             .arg("tap0")
             .arg("inet6")
             .arg("fc00::/7")
@@ -148,10 +158,41 @@ pub fn start_emulator(with_graphics: bool, target_options: &TargetOptions) -> Re
 
         println!("tap0 enabled");
 
-        Command::new("stty").arg("sane")
+        Command::new("stty")
+            .arg("sane")
             .status()
             .chain_err(|| "couldn't run stty")?;
+    } else {
+        // Create the tap network device if it doesn't exist.
+        if !Path::new("/sys/class/net/qemu").exists() {
+            println!("Qemu tap device not found. Using tunctl to create tap network device.");
+            let tunctl_status = Command::new("sudo")
+                .args(&["tunctl", "-b", "-u", &user, "-t", "qemu"])
+                .stdout(Stdio::null())
+                .status()
+                .map_err(|e| if e.kind() == ::std::io::ErrorKind::NotFound {
+                    Error::with_chain(e, "tunctl command not found. Please install uml-utilities. For help see \
+                    https://fuchsia.googlesource.com/magenta/+/master/docs/qemu.md#Enabling-Networking-under-QEMU-x86_64-only")
+                } else {
+                    Error::with_chain(e, "tunctl failed to create a new tap network device")
+                })?;
 
+            if !tunctl_status.success() {
+                bail!("tunctl failed to create tap network device.");
+            }
+        }
+
+        println!("Calling sudo ifconfig to bring up tap interface; password may be required.");
+        let ifconfig_status = Command::new("sudo")
+            .arg("ifconfig")
+            .arg("qemu")
+            .arg("up")
+            .status()
+            .chain_err(|| "couldn't run ifconfig")?;
+
+        if !ifconfig_status.success() {
+            bail!("ifconfig failed");
+        }
     }
 
     Ok(())

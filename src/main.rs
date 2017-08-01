@@ -279,13 +279,17 @@ fn run() -> Result<()> {
             .about("Start a Fuchsia emulator")
             .arg(Arg::with_name("graphics")
                 .short("g")
-                .help("Start a simulator with graphics enabled")))
+                .help("Start a simulator with graphics enabled"))
+            .arg(Arg::with_name("no_net"))
+                .help("Don't set up networking."))
         .subcommand(SubCommand::with_name("stop").about("Stop all Fuchsia emulators"))
         .subcommand(SubCommand::with_name("restart")
             .about("Stop all Fuchsia emulators and start a new one")
             .arg(Arg::with_name("graphics")
                 .short("g")
-                .help("Start a simulator with graphics enabled")))
+                .help("Start a simulator with graphics enabled"))
+            .arg(Arg::with_name("no_net"))
+                .help("Don't set up networking."))
         .subcommand(SubCommand::with_name("ssh")
             .about("Open a shell on Fuchsia device or emulator"))
         .subcommand(SubCommand::with_name("cargo")
@@ -354,7 +358,7 @@ fn run() -> Result<()> {
     }
 
     if let Some(start_matches) = matches.subcommand_matches("start") {
-        return start_emulator(start_matches.is_present("graphics"), &target_options)
+        return start_emulator(start_matches.is_present("graphics"), !start_matches.is_present("no_net"), &target_options)
             .chain_err(|| "starting emulator failed");
     }
 
@@ -365,7 +369,7 @@ fn run() -> Result<()> {
     if let Some(restart_matches) = matches.subcommand_matches("restart") {
         stop_emulator().chain_err(|| "in restart, stopping emulator failed")?;
 
-        return start_emulator(restart_matches.is_present("graphics"), &target_options)
+        return start_emulator(restart_matches.is_present("graphics"), !restart_matches.is_present("no_net"), &target_options)
             .chain_err(|| "in restart, starting emulator failed");
     }
 
