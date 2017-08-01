@@ -26,9 +26,9 @@ impl TargetOptions {
 
 pub fn fuchsia_root() -> Result<PathBuf> {
     let fuchsia_root_value = env::var("FUCHSIA_ROOT").chain_err(|| {
-            "FUCHSIA_ROOT not set. You must set the environmental variable FUCHSIA_ROOT to point \
+        "FUCHSIA_ROOT not set. You must set the environmental variable FUCHSIA_ROOT to point \
              to a Fuchsia tree with a debug-x86-64 build including the rust module"
-        })?;
+    })?;
 
     Ok(PathBuf::from(fuchsia_root_value))
 }
@@ -72,5 +72,10 @@ pub fn strip_tool_path() -> Result<PathBuf> {
     } else {
         "clang+llvm-x86_64-linux"
     };
-    Ok(fuchsia_root()?.join("buildtools/toolchain").join(platform_name).join("bin/strip"))
+    Ok(
+        fuchsia_root()?
+            .join("buildtools/toolchain")
+            .join(platform_name)
+            .join("bin/strip"),
+    )
 }

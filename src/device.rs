@@ -21,21 +21,24 @@ error_chain!{
 pub fn netaddr(verbose: bool) -> Result<String> {
     let fuchsia_root = fuchsia_root()?;
     let netaddr_binary = fuchsia_root.join("out/build-magenta/tools/netaddr");
-    let netaddr_result = Command::new(netaddr_binary).arg("--fuchsia")
-        .output()?;
-    let result = str::from_utf8(&netaddr_result.stdout).unwrap().trim().to_string();
+    let netaddr_result = Command::new(netaddr_binary).arg("--fuchsia").output()?;
+    let result = str::from_utf8(&netaddr_result.stdout)
+        .unwrap()
+        .trim()
+        .to_string();
     if verbose {
         println!("netaddr result = {}", result);
     }
     Ok(result)
 }
 
-pub fn scp_to_device(verbose: bool,
-                     target_options: &TargetOptions,
-                     netaddr: &str,
-                     source_path: &PathBuf,
-                     destination_path: &str)
-                     -> Result<()> {
+pub fn scp_to_device(
+    verbose: bool,
+    target_options: &TargetOptions,
+    netaddr: &str,
+    source_path: &PathBuf,
+    destination_path: &str,
+) -> Result<()> {
     let destination_with_address = format!("[{}]:{}", netaddr, destination_path);
     let ssh_config = target_out_dir(&target_options)?.join("ssh-keys/ssh_config");
     if !ssh_config.exists() {
@@ -48,10 +51,18 @@ pub fn scp_to_device(verbose: bool,
 
     let mut scp_command = Command::new("scp");
 
-    scp_command.arg(if verbose { "-v" } else { "-q" })
+    scp_command
+        .arg(if verbose { "-v" } else { "-q" })
         .arg("-F")
         .arg(ssh_config)
-        .args(&["-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no"])
+        .args(
+            &[
+                "-o",
+                "UserKnownHostsFile=/dev/null",
+                "-o",
+                "StrictHostKeyChecking=no",
+            ],
+        )
         .arg(source_path)
         .arg(destination_with_address);
 
@@ -59,8 +70,7 @@ pub fn scp_to_device(verbose: bool,
         println!("{:?}", scp_command);
     }
 
-    let scp_result = scp_command.status()
-        .chain_err(|| "unable to run scp")?;
+    let scp_result = scp_command.status().chain_err(|| "unable to run scp")?;
 
     if !scp_result.success() {
         bail!("scp failed with error {:?}", scp_result);
@@ -75,10 +85,18 @@ pub fn ssh(verbose: bool, target_options: &TargetOptions, command: &str) -> Resu
     if !ssh_config.exists() {
         bail!("ssh config not found at {:?}", ssh_config);
     }
-    let ssh_result = Command::new("ssh").arg("-q")
+    let ssh_result = Command::new("ssh")
+        .arg("-q")
         .arg("-F")
         .arg(ssh_config)
-        .args(&["-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no"])
+        .args(
+            &[
+                "-o",
+                "UserKnownHostsFile=/dev/null",
+                "-o",
+                "StrictHostKeyChecking=no",
+            ],
+        )
         .arg(netaddr)
         .arg(command)
         .status()
@@ -91,6 +109,11 @@ pub fn ssh(verbose: bool, target_options: &TargetOptions, command: &str) -> Resu
     Ok(())
 }
 
+#[cfg_attr(rustfmt, rustfmt_skip)]
+static TUNCTL_NOT_FOUND_ERROR: &'static str =
+"tunctl command not found. Please install uml-utilities.
+For help see https://fuchsia.googlesource.com/magenta/+/
+master/docs/qemu.md#Enabling-Networking-under-QEMU-x86_64-only";
 
 pub fn start_emulator(
     with_graphics: bool,
@@ -158,10 +181,9 @@ pub fn start_emulator(
 
         println!("tap0 enabled");
 
-        Command::new("stty")
-            .arg("sane")
-            .status()
-            .chain_err(|| "couldn't run stty")?;
+        Command::new("stty").arg("sane").status().chain_err(
+            || "couldn't run stty",
+        )?;
     } else {
         // Create the tap network device if it doesn't exist.
         if !Path::new("/sys/class/net/qemu").exists() {
@@ -171,8 +193,7 @@ pub fn start_emulator(
                 .stdout(Stdio::null())
                 .status()
                 .map_err(|e| if e.kind() == ::std::io::ErrorKind::NotFound {
-                    Error::with_chain(e, "tunctl command not found. Please install uml-utilities. For help see \
-                    https://fuchsia.googlesource.com/magenta/+/master/docs/qemu.md#Enabling-Networking-under-QEMU-x86_64-only")
+                    Error::with_chain(e, TUNCTL_NOT_FOUND_ERROR)
                 } else {
                     Error::with_chain(e, "tunctl failed to create a new tap network device")
                 })?;
@@ -199,7 +220,6 @@ pub fn start_emulator(
 }
 
 pub fn stop_emulator() -> Result<()> {
-    Command::new("killall").arg("qemu-system-x86_64")
-        .status()?;
+    Command::new("killall").arg("qemu-system-x86_64").status()?;
     Ok(())
 }

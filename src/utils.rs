@@ -30,7 +30,8 @@ pub fn strip_binary(binary: &PathBuf) -> Result<PathBuf> {
     let file_name = binary.file_name().unwrap();
     let new_file_name = file_name.to_string_lossy().into_owned() + "_stripped";
     let target_path = binary.parent().unwrap().join(new_file_name);
-    let strip_result = Command::new(strip_tool_path()?).arg(binary)
+    let strip_result = Command::new(strip_tool_path()?)
+        .arg(binary)
         .arg("-o")
         .arg(&target_path)
         .status()

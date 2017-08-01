@@ -45,30 +45,35 @@ use std::fs;
 use update_crates::update_crates;
 use utils::strip_binary;
 
-fn run_program_on_target(filename: &str,
-                         verbose: bool,
-                         target_options: &TargetOptions,
-                         launch: bool,
-                         params: &[&str])
-                         -> Result<()> {
+fn run_program_on_target(
+    filename: &str,
+    verbose: bool,
+    target_options: &TargetOptions,
+    launch: bool,
+    params: &[&str],
+) -> Result<()> {
     let netaddr = netaddr(verbose)?;
     if verbose {
         println!("netaddr {}", netaddr);
     }
     let source_path = PathBuf::from(&filename);
     let stripped_source_path = strip_binary(&source_path)?;
-    let destination_path = format!("/tmp/{}",
-                                   stripped_source_path.file_name()
-                                       .unwrap()
-                                       .to_string_lossy());
-    println!("copying {} to {}",
-             source_path.to_string_lossy(),
-             destination_path);
-    scp_to_device(verbose,
-                  &target_options,
-                  &netaddr,
-                  &stripped_source_path,
-                  &destination_path)?;
+    let destination_path = format!(
+        "/tmp/{}",
+        stripped_source_path.file_name().unwrap().to_string_lossy()
+    );
+    println!(
+        "copying {} to {}",
+        source_path.to_string_lossy(),
+        destination_path
+    );
+    scp_to_device(
+        verbose,
+        &target_options,
+        &netaddr,
+        &stripped_source_path,
+        &destination_path,
+    )?;
     let mut command_string = (if launch { "launch " } else { "" }).to_string();
     command_string.push_str(&destination_path);
     for param in params {
@@ -107,7 +112,7 @@ fn autotest(verbose: bool, release: bool, target_options: &TargetOptions) -> Res
 
     println!("autotest: started");
     loop {
-        let event =  rx.recv().chain_err(|| "autotest: watch error" )?;
+        let event = rx.recv().chain_err(|| "autotest: watch error")?;
         match event {
             notify::DebouncedEvent::Create(path) |
             notify::DebouncedEvent::Write(path) |
@@ -125,22 +130,24 @@ fn autotest(verbose: bool, release: bool, target_options: &TargetOptions) -> Res
     }
 }
 
-fn build_tests(verbose: bool,
-               release: bool,
-               target_options: &TargetOptions,
-               test_target: &str)
-               -> Result<bool> {
+fn build_tests(
+    verbose: bool,
+    release: bool,
+    target_options: &TargetOptions,
+    test_target: &str,
+) -> Result<bool> {
     run_tests(verbose, release, true, target_options, test_target, &vec![])?;
     Ok(true)
 }
 
-fn run_tests(verbose: bool,
-             release: bool,
-             no_run: bool,
-             target_options: &TargetOptions,
-             test_target: &str,
-             params: &[&str])
-             -> Result<()> {
+fn run_tests(
+    verbose: bool,
+    release: bool,
+    no_run: bool,
+    target_options: &TargetOptions,
+    test_target: &str,
+    params: &[&str],
+) -> Result<()> {
 
     let mut args = vec!["test"];
 
@@ -165,21 +172,23 @@ fn build_binary(verbose: bool, release: bool, target_options: &TargetOptions) ->
     run_cargo(verbose, release, false, &vec!["build"], &target_options)
 }
 
-fn run_binary(verbose: bool,
-              release: bool,
-              launch: bool,
-              target_options: &TargetOptions)
-              -> Result<()> {
+fn run_binary(
+    verbose: bool,
+    release: bool,
+    launch: bool,
+    target_options: &TargetOptions,
+) -> Result<()> {
     run_cargo(verbose, release, launch, &vec!["run"], &target_options)?;
     return Ok(());
 }
 
-fn run_cargo(verbose: bool,
-             release: bool,
-             launch: bool,
-             args: &[&str],
-             target_options: &TargetOptions)
-             -> Result<(bool)> {
+fn run_cargo(
+    verbose: bool,
+    release: bool,
+    launch: bool,
+    args: &[&str],
+    target_options: &TargetOptions,
+) -> Result<(bool)> {
     let mut target_args = vec!["--target", "x86_64-unknown-fuchsia"];
 
     if release {
@@ -192,8 +201,11 @@ fn run_cargo(verbose: bool,
 
     let fargo_path = fs::canonicalize(std::env::current_exe()?)?;
 
-    let mut runner_args = vec![fargo_path.to_str()
-                                   .ok_or_else(|| "unable to convert path to utf8 encoding")?];
+    let mut runner_args = vec![
+        fargo_path.to_str().ok_or_else(
+            || "unable to convert path to utf8 encoding"
+        )?,
+    ];
 
     if verbose {
         runner_args.push("-v");
@@ -214,8 +226,10 @@ fn run_cargo(verbose: bool,
     let mut cmd = Command::new("cargo");
 
     cmd.env("RUSTC", rust_c_path()?.to_str().unwrap())
-        .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
-             rust_linker_path(&target_options)?.to_str().unwrap())
+        .env(
+            "CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
+            rust_linker_path(&target_options)?.to_str().unwrap(),
+        )
         .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_RUNNER", fargo_command)
         .args(args)
         .args(target_args);
@@ -224,7 +238,9 @@ fn run_cargo(verbose: bool,
         println!("cargo cmd: {:?}", cmd);
     }
 
-    cmd.status().chain_err(|| "Unable to run cargo").map(|s| s.success())
+    cmd.status().chain_err(|| "Unable to run cargo").map(|s| {
+        s.success()
+    })
 }
 
 
@@ -232,134 +248,180 @@ fn run() -> Result<()> {
     let matches = App::new("fargo")
         .version("v0.1.0")
         .setting(AppSettings::GlobalVersion)
-        .arg(Arg::with_name("verbose")
-            .short("v")
-            .help("Print verbose output while performing commands"))
-        .arg(Arg::with_name("debug-os")
-            .long("debug-os")
-            .help("Use debug user.bootfs and ssh keys"))
+        .arg(Arg::with_name("verbose").short("v").help(
+            "Print verbose output while performing commands",
+        ))
+        .arg(Arg::with_name("debug-os").long("debug-os").help(
+            "Use debug user.bootfs and ssh keys",
+        ))
         .subcommand(SubCommand::with_name("autotest"))
-            .about("Auto build and test in Fuchsia device or emulator")
-            .arg(Arg::with_name("release")
-                .long("release")
-                .help("Build release"))
-        .subcommand(SubCommand::with_name("build-tests")
-            .about("Build for Fuchsia device or emulator")
-            .arg(Arg::with_name("test")
-                .long("test")
-                .value_name("test")
-                .help("Test only the specified test target"))
-            .arg(Arg::with_name("release")
-                .long("release")
-                .help("Build release")))
-        .subcommand(SubCommand::with_name("test")
-            .about("Run unit tests on Fuchsia device or emulator")
-            .arg(Arg::with_name("release")
-                .long("release")
-                .help("Build release"))
-            .arg(Arg::with_name("test")
-                .long("test")
-                .value_name("test")
-                .help("Test only the specified test target"))
-            .arg(Arg::with_name("test_params").index(1).multiple(true)))
-        .subcommand(SubCommand::with_name("build")
-            .about("Build binary targeting Fuchsia device or emulator")
-            .arg(Arg::with_name("release")
-                .long("release")
-                .help("Build release")))
-        .subcommand(SubCommand::with_name("run")
-            .about("Run binary on Fuchsia device or emulator")
-            .arg(Arg::with_name("release")
-                .long("release")
-                .help("Build release"))
-            .arg(Arg::with_name("launch")
-                .long("launch")
-                .help("Use launch to run binary.")))
-        .subcommand(SubCommand::with_name("start")
-            .about("Start a Fuchsia emulator")
-            .arg(Arg::with_name("graphics")
-                .short("g")
-                .help("Start a simulator with graphics enabled"))
-            .arg(Arg::with_name("no_net"))
-                .help("Don't set up networking."))
-        .subcommand(SubCommand::with_name("stop").about("Stop all Fuchsia emulators"))
-        .subcommand(SubCommand::with_name("restart")
-            .about("Stop all Fuchsia emulators and start a new one")
-            .arg(Arg::with_name("graphics")
-                .short("g")
-                .help("Start a simulator with graphics enabled"))
-            .arg(Arg::with_name("no_net"))
-                .help("Don't set up networking."))
-        .subcommand(SubCommand::with_name("ssh")
-            .about("Open a shell on Fuchsia device or emulator"))
-        .subcommand(SubCommand::with_name("cargo")
-            .about("Run a cargo command for Fuchsia. Use -- to indicate that all \
-                         following arguments should be passed to cargo.")
-            .arg(Arg::with_name("cargo_params").index(1).multiple(true)))
-        .subcommand(SubCommand::with_name("run-on-target")
-            .about("Act as a test runner for cargo")
-            .arg(Arg::with_name("launch")
-                .long("launch")
-                .help("Use launch to run binary."))
-            .arg(Arg::with_name("run_on_target_params").index(1).multiple(true))
-            .setting(AppSettings::Hidden))
-        .subcommand(SubCommand::with_name("update-crates")
-            .about("Update the FIDL generated crates")
-            .arg(Arg::with_name("target")
-                .long("target")
-                .value_name("target")
-                .required(true)
-                .help("Target directory for updated crates"))
-            .setting(AppSettings::Hidden))
+        .about("Auto build and test in Fuchsia device or emulator")
+        .arg(Arg::with_name("release").long("release").help(
+            "Build release",
+        ))
+        .subcommand(
+            SubCommand::with_name("build-tests")
+                .about("Build for Fuchsia device or emulator")
+                .arg(
+                    Arg::with_name("test")
+                        .long("test")
+                        .value_name("test")
+                        .help("Test only the specified test target"),
+                )
+                .arg(Arg::with_name("release").long("release").help(
+                    "Build release",
+                )),
+        )
+        .subcommand(
+            SubCommand::with_name("test")
+                .about("Run unit tests on Fuchsia device or emulator")
+                .arg(Arg::with_name("release").long("release").help(
+                    "Build release",
+                ))
+                .arg(
+                    Arg::with_name("test")
+                        .long("test")
+                        .value_name("test")
+                        .help("Test only the specified test target"),
+                )
+                .arg(Arg::with_name("test_params").index(1).multiple(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("build")
+                .about("Build binary targeting Fuchsia device or emulator")
+                .arg(Arg::with_name("release").long("release").help(
+                    "Build release",
+                )),
+        )
+        .subcommand(
+            SubCommand::with_name("run")
+                .about("Run binary on Fuchsia device or emulator")
+                .arg(Arg::with_name("release").long("release").help(
+                    "Build release",
+                ))
+                .arg(Arg::with_name("launch").long("launch").help(
+                    "Use launch to run binary.",
+                )),
+        )
+        .subcommand(
+            SubCommand::with_name("start")
+                .about("Start a Fuchsia emulator")
+                .arg(Arg::with_name("graphics").short("g").help(
+                    "Start a simulator with graphics enabled",
+                ))
+                .arg(Arg::with_name("no_net"))
+                .help("Don't set up networking."),
+        )
+        .subcommand(SubCommand::with_name("stop").about(
+            "Stop all Fuchsia emulators",
+        ))
+        .subcommand(
+            SubCommand::with_name("restart")
+                .about("Stop all Fuchsia emulators and start a new one")
+                .arg(Arg::with_name("graphics").short("g").help(
+                    "Start a simulator with graphics enabled",
+                ))
+                .arg(Arg::with_name("no_net"))
+                .help("Don't set up networking."),
+        )
+        .subcommand(SubCommand::with_name("ssh").about(
+            "Open a shell on Fuchsia device or emulator",
+        ))
+        .subcommand(
+            SubCommand::with_name("cargo")
+                .about(
+                    "Run a cargo command for Fuchsia. Use -- to indicate that all \
+                         following arguments should be passed to cargo.",
+                )
+                .arg(Arg::with_name("cargo_params").index(1).multiple(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("run-on-target")
+                .about("Act as a test runner for cargo")
+                .arg(Arg::with_name("launch").long("launch").help(
+                    "Use launch to run binary.",
+                ))
+                .arg(Arg::with_name("run_on_target_params").index(1).multiple(
+                    true,
+                ))
+                .setting(AppSettings::Hidden),
+        )
+        .subcommand(
+            SubCommand::with_name("update-crates")
+                .about("Update the FIDL generated crates")
+                .arg(
+                    Arg::with_name("target")
+                        .long("target")
+                        .value_name("target")
+                        .required(true)
+                        .help("Target directory for updated crates"),
+                )
+                .setting(AppSettings::Hidden),
+        )
         .get_matches();
 
     let verbose = matches.is_present("verbose");
     let target_options = TargetOptions::new(!matches.is_present("debug-os"));
 
     if let Some(autotest_matches) = matches.subcommand_matches("autotest") {
-        return autotest(verbose, autotest_matches.is_present("release"), &target_options);
+        return autotest(
+            verbose,
+            autotest_matches.is_present("release"),
+            &target_options,
+        );
     }
 
     if let Some(test_matches) = matches.subcommand_matches("test") {
-        let test_params =
-            test_matches.values_of("test_params").map(|x| x.collect()).unwrap_or(vec![]);
+        let test_params = test_matches
+            .values_of("test_params")
+            .map(|x| x.collect())
+            .unwrap_or(vec![]);
         let test_target = test_matches.value_of("test").unwrap_or("");
-        return run_tests(verbose,
-                         test_matches.is_present("release"),
-                         false,
-                         &target_options,
-                         &test_target,
-                         &test_params)
-            .chain_err(|| "running tests failed");
+        return run_tests(
+            verbose,
+            test_matches.is_present("release"),
+            false,
+            &target_options,
+            &test_target,
+            &test_params,
+        ).chain_err(|| "running tests failed");
     }
 
     if let Some(build_matches) = matches.subcommand_matches("build") {
-        build_binary(verbose,
-                     build_matches.is_present("release"),
-                     &target_options).chain_err(|| "building binary failed")?;
+        build_binary(
+            verbose,
+            build_matches.is_present("release"),
+            &target_options,
+        ).chain_err(|| "building binary failed")?;
         return Ok(());
     }
 
     if let Some(run_matches) = matches.subcommand_matches("run") {
-        return run_binary(verbose,
-                          run_matches.is_present("release"),
-                          run_matches.is_present("launch"),
-                          &target_options)
-            .chain_err(|| "running binary failed");
+        return run_binary(
+            verbose,
+            run_matches.is_present("release"),
+            run_matches.is_present("launch"),
+            &target_options,
+        ).chain_err(|| "running binary failed");
     }
 
     if let Some(build_test_matches) = matches.subcommand_matches("build-tests") {
         let test_target = build_test_matches.value_of("test").unwrap_or("");
-        build_tests(verbose,
-                    build_test_matches.is_present("release"),
-                    &target_options,
-                    &test_target).chain_err(|| "building tests failed")?;
+        build_tests(
+            verbose,
+            build_test_matches.is_present("release"),
+            &target_options,
+            &test_target,
+        ).chain_err(|| "building tests failed")?;
         return Ok(());
     }
 
     if let Some(start_matches) = matches.subcommand_matches("start") {
-        return start_emulator(start_matches.is_present("graphics"), !start_matches.is_present("no_net"), &target_options)
-            .chain_err(|| "starting emulator failed");
+        return start_emulator(
+            start_matches.is_present("graphics"),
+            !start_matches.is_present("no_net"),
+            &target_options,
+        ).chain_err(|| "starting emulator failed");
     }
 
     if let Some(_) = matches.subcommand_matches("stop") {
@@ -367,10 +429,15 @@ fn run() -> Result<()> {
     }
 
     if let Some(restart_matches) = matches.subcommand_matches("restart") {
-        stop_emulator().chain_err(|| "in restart, stopping emulator failed")?;
+        stop_emulator().chain_err(
+            || "in restart, stopping emulator failed",
+        )?;
 
-        return start_emulator(restart_matches.is_present("graphics"), !restart_matches.is_present("no_net"), &target_options)
-            .chain_err(|| "in restart, starting emulator failed");
+        return start_emulator(
+            restart_matches.is_present("graphics"),
+            !restart_matches.is_present("no_net"),
+            &target_options,
+        ).chain_err(|| "in restart, starting emulator failed");
     }
 
     if let Some(_) = matches.subcommand_matches("ssh") {
@@ -378,15 +445,18 @@ fn run() -> Result<()> {
     }
 
     if let Some(cargo_matches) = matches.subcommand_matches("cargo") {
-        let cargo_params =
-            cargo_matches.values_of("cargo_params").map(|x| x.collect()).unwrap_or(vec![]);
-        run_cargo(verbose, false, false, &cargo_params,
-            &target_options).chain_err(|| "run cargo failed")?;
+        let cargo_params = cargo_matches
+            .values_of("cargo_params")
+            .map(|x| x.collect())
+            .unwrap_or(vec![]);
+        run_cargo(verbose, false, false, &cargo_params, &target_options)
+            .chain_err(|| "run cargo failed")?;
         return Ok(());
     }
 
     if let Some(run_on_target_matches) = matches.subcommand_matches("run-on-target") {
-        let run_params = run_on_target_matches.values_of("run_on_target_params")
+        let run_params = run_on_target_matches
+            .values_of("run_on_target_params")
             .map(|x| x.collect())
             .unwrap_or(vec![]);
         let (program, args) = run_params.split_first().unwrap();

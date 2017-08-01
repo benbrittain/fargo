@@ -17,15 +17,17 @@ error_chain!{
     }
 }
 
+#[cfg_attr(rustfmt, rustfmt_skip)]
 static LICENSE_RS_FILE_HEADER: &'static str =
-    r#"// Copyright 2017 The Fuchsia Authors. All rights reserved.
+r#"// Copyright 2017 The Fuchsia Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 "#;
 
+#[cfg_attr(rustfmt, rustfmt_skip)]
 static LICENSE_TOML_FILE_HEADER: &'static str =
-    r#"# Copyright 2017 The Fuchsia Authors. All rights reserved.
+r#"# Copyright 2017 The Fuchsia Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -67,7 +69,9 @@ impl Cargo {
                 if k == "magenta" || k == "mxruntime" {
                     v.version = Some("0.1.0".to_string());
                 } else {
-                    v.git = Some("https://fuchsia.googlesource.com/fuchsia-crates".to_string());
+                    v.git = Some(
+                        "https://fuchsia.googlesource.com/fuchsia-crates".to_string(),
+                    );
                 }
                 new_deps_map.insert(k, v);
             }
