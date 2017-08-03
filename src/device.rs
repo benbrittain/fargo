@@ -5,7 +5,7 @@
 use std::env;
 use std::path::{PathBuf, Path};
 use std::process::{Command, Stdio};
-use std::str;
+use std::{str, thread, time};
 use sdk::{fuchsia_root, target_out_dir, TargetOptions};
 use utils::is_mac;
 
@@ -109,11 +109,101 @@ pub fn ssh(verbose: bool, target_options: &TargetOptions, command: &str) -> Resu
     Ok(())
 }
 
+pub fn setup_network_mac(user: &str) -> Result<()> {
+    println!("Calling sudo ifconfig to bring up tap0 interface; password may be required.");
+
+    let chown_status = Command::new("sudo")
+        .arg("chown")
+        .arg(user)
+        .arg("/dev/tap0")
+        .status()
+        .chain_err(|| "couldn't run chown")?;
+
+    if !chown_status.success() {
+        bail!("chown failed: {}", chown_status);
+    }
+
+    let mut loop_count = 0;
+    loop {
+        let ifconfig_status = Command::new("sudo")
+            .arg("ifconfig")
+            .arg("tap0")
+            .arg("inet6")
+            .arg("fc00::/7")
+            .arg("up")
+            .status()
+            .chain_err(|| "couldn't run ifconfig")?;
+
+        if !ifconfig_status.success() {
+            if loop_count > 10 {
+                bail!("ifconfig failed: {}", ifconfig_status);
+            }
+            loop_count += 1;
+            thread::sleep(time::Duration::from_millis(100));
+        } else {
+            break;
+        }
+    }
+
+    println!("tap0 enabled");
+
+    Command::new("stty").arg("sane").status().chain_err(
+        || "couldn't run stty",
+    )?;
+
+    Ok(())
+}
+
 #[cfg_attr(rustfmt, rustfmt_skip)]
 static TUNCTL_NOT_FOUND_ERROR: &'static str =
 "tunctl command not found. Please install uml-utilities.
 For help see https://fuchsia.googlesource.com/magenta/+/
 master/docs/qemu.md#Enabling-Networking-under-QEMU-x86_64-only";
+
+pub fn setup_network_linux(user: &str) -> Result<()> {
+    // Create the tap network device if it doesn't exist.
+    if !Path::new("/sys/class/net/qemu").exists() {
+        println!(
+            "Qemu tap device not found. Using sudo and tunctl to create \
+            tap network device; password may be required."
+        );
+        let tunctl_status = Command::new("sudo")
+            .args(&["tunctl", "-b", "-u", &user, "-t", "qemu"])
+            .stdout(Stdio::null())
+            .status()
+            .map_err(|e| if e.kind() == ::std::io::ErrorKind::NotFound {
+                Error::with_chain(e, TUNCTL_NOT_FOUND_ERROR)
+            } else {
+                Error::with_chain(e, "tunctl failed to create a new tap network device")
+            })?;
+
+        if !tunctl_status.success() {
+            bail!("tunctl failed to create tap network device.");
+        }
+    }
+
+    let ifconfig_status = Command::new("sudo")
+        .arg("ifconfig")
+        .arg("qemu")
+        .arg("up")
+        .status()
+        .chain_err(|| "couldn't run ifconfig")?;
+
+    if !ifconfig_status.success() {
+        bail!("ifconfig failed");
+    }
+
+    Ok(())
+}
+
+pub fn setup_network() -> Result<()> {
+    let user = env::var("USER").chain_err(|| "No $USER env var found.")?;
+    if is_mac() {
+        setup_network_mac(&user)
+    } else {
+        setup_network_linux(&user)
+    }
+}
 
 pub fn start_emulator(
     with_graphics: bool,
@@ -144,79 +234,11 @@ pub fn start_emulator(
 
     println!("emulator started with process ID {}", child.id());
 
-    if !with_networking {
-        return Ok(());
-    }
-
-    let user = env::var("USER").chain_err(|| "No $USER env var found.")?;
-    if is_mac() {
-        // TODO; Poll for /dev/tap0 as it can take a while for the emulator
-        //       to create it.
-
-        println!("Calling sudo ifconfig to bring up tap0 interface; password may be required.");
-
-        let chown_status = Command::new("sudo")
-            .arg("chown")
-            .arg(user)
-            .arg("/dev/tap0")
-            .status()
-            .chain_err(|| "couldn't run chown")?;
-
-        if !chown_status.success() {
-            bail!("chown failed: {}", chown_status);
-        }
-
-        let ifconfig_status = Command::new("sudo")
-            .arg("ifconfig")
-            .arg("tap0")
-            .arg("inet6")
-            .arg("fc00::/7")
-            .arg("up")
-            .status()
-            .chain_err(|| "couldn't run ifconfig")?;
-
-        if !ifconfig_status.success() {
-            bail!("ifconfig failed: {}", chown_status);
-        }
-
-        println!("tap0 enabled");
-
-        Command::new("stty").arg("sane").status().chain_err(
-            || "couldn't run stty",
-        )?;
+    if with_networking {
+        setup_network()
     } else {
-        // Create the tap network device if it doesn't exist.
-        if !Path::new("/sys/class/net/qemu").exists() {
-            println!("Qemu tap device not found. Using tunctl to create tap network device.");
-            let tunctl_status = Command::new("sudo")
-                .args(&["tunctl", "-b", "-u", &user, "-t", "qemu"])
-                .stdout(Stdio::null())
-                .status()
-                .map_err(|e| if e.kind() == ::std::io::ErrorKind::NotFound {
-                    Error::with_chain(e, TUNCTL_NOT_FOUND_ERROR)
-                } else {
-                    Error::with_chain(e, "tunctl failed to create a new tap network device")
-                })?;
-
-            if !tunctl_status.success() {
-                bail!("tunctl failed to create tap network device.");
-            }
-        }
-
-        println!("Calling sudo ifconfig to bring up tap interface; password may be required.");
-        let ifconfig_status = Command::new("sudo")
-            .arg("ifconfig")
-            .arg("qemu")
-            .arg("up")
-            .status()
-            .chain_err(|| "couldn't run ifconfig")?;
-
-        if !ifconfig_status.success() {
-            bail!("ifconfig failed");
-        }
+        Ok(())
     }
-
-    Ok(())
 }
 
 pub fn stop_emulator() -> Result<()> {
