@@ -15,6 +15,7 @@ extern crate toml;
 extern crate uname;
 
 mod device;
+mod cross;
 mod sdk;
 mod utils;
 mod update_crates;
@@ -24,6 +25,7 @@ mod errors {
     error_chain!{
         links {
             Device(::device::Error, ::device::ErrorKind);
+            Cross(::cross::Error, ::cross::ErrorKind);
             SDK(::sdk::Error, ::sdk::ErrorKind);
             Utils(::utils::Error, ::utils::ErrorKind);
         }
@@ -39,6 +41,7 @@ use errors::*;
 use clap::{App, AppSettings, Arg, SubCommand};
 use device::{netaddr, scp_to_device, ssh, start_emulator, stop_emulator};
 use sdk::{rust_c_path, rust_linker_path, TargetOptions};
+use cross::{pkg_config_path, run_configure, run_pkg_config};
 use std::path::PathBuf;
 use std::process::Command;
 use std::fs;
@@ -223,6 +226,7 @@ fn run_cargo(
         println!("fargo_command: {:?}", fargo_command);
     }
 
+    let pkg_path = pkg_config_path(&target_options)?;
     let mut cmd = Command::new("cargo");
 
     cmd.env("RUSTC", rust_c_path()?.to_str().unwrap())
@@ -231,6 +235,10 @@ fn run_cargo(
             rust_linker_path(&target_options)?.to_str().unwrap(),
         )
         .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_RUNNER", fargo_command)
+        .env("PKG_CONFIG_ALL_STATIC", "1")
+        .env("PKG_CONFIG_ALLOW_CROSS", "1")
+        .env("PKG_CONFIG_PATH", "")
+        .env("PKG_CONFIG_LIBDIR", pkg_path)
         .args(args)
         .args(target_args);
 
@@ -248,20 +256,23 @@ fn run() -> Result<()> {
     let matches = App::new("fargo")
         .version("v0.1.0")
         .setting(AppSettings::GlobalVersion)
+        .about("Fargo is a prototype Fuchsia-specific wrapper around Cargo")
         .arg(Arg::with_name("verbose").short("v").help(
             "Print verbose output while performing commands",
         ))
         .arg(Arg::with_name("debug-os").long("debug-os").help(
             "Use debug user.bootfs and ssh keys",
         ))
-        .subcommand(SubCommand::with_name("autotest"))
-        .about("Auto build and test in Fuchsia device or emulator")
-        .arg(Arg::with_name("release").long("release").help(
-            "Build release",
-        ))
+        .subcommand(
+            SubCommand::with_name("autotest")
+                .about("Auto build and test in Fuchsia device or emulator")
+                .arg(Arg::with_name("release").long("release").help(
+                    "Build release",
+                )),
+        )
         .subcommand(
             SubCommand::with_name("build-tests")
-                .about("Build for Fuchsia device or emulator")
+                .about("Build tests for Fuchsia device or emulator")
                 .arg(
                     Arg::with_name("test")
                         .long("test")
@@ -357,6 +368,21 @@ fn run() -> Result<()> {
                         .help("Target directory for updated crates"),
                 )
                 .setting(AppSettings::Hidden),
+        )
+        .subcommand(
+            SubCommand::with_name("pkg-config")
+                .about("Run pkg-config for the cross compilation environment")
+                .arg(Arg::with_name("pkgconfig_param").index(1).multiple(true)),
+        )
+        .subcommand(
+            SubCommand::with_name("configure")
+                .about(
+                    "Run a configure script for the cross compilation environment",
+                )
+                .arg(Arg::with_name("configure_param").index(1).multiple(true))
+                .arg(Arg::with_name("no-host").long("no-host").help(
+                    "Don't pass --host to configure",
+                )),
         )
         .get_matches();
 
@@ -466,6 +492,33 @@ fn run() -> Result<()> {
     if let Some(update_matches) = matches.subcommand_matches("update-crates") {
         let update_target = update_matches.value_of("target").unwrap();
         return update_crates(&update_target).chain_err(|| "update-crates failed");
+    }
+
+    if let Some(pkg_matches) = matches.subcommand_matches("pkg-config") {
+        let pkg_params = pkg_matches
+            .values_of("pkgconfig_param")
+            .map(|x| x.collect())
+            .unwrap_or(vec![]);
+        let exit_code = run_pkg_config(verbose, &pkg_params, &target_options)
+            .chain_err(|| "run_pkg_config failed")?;
+        if exit_code != 0 {
+            ::std::process::exit(exit_code);
+        }
+        return Ok(());
+    }
+
+    if let Some(configure_matches) = matches.subcommand_matches("configure") {
+        let configure_params = configure_matches
+            .values_of("configure_param")
+            .map(|x| x.collect())
+            .unwrap_or(vec![]);
+        run_configure(
+            verbose,
+            !configure_matches.is_present("no-host"),
+            &configure_params,
+            &target_options,
+        ).chain_err(|| "run_configure failed")?;
+        return Ok(());
     }
 
     Ok(())

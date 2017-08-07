@@ -9,9 +9,9 @@ use utils::is_mac;
 error_chain!{}
 
 pub struct TargetOptions {
-    release_os: bool,
-    target_cpu: &'static str,
-    target_cpu_linker: &'static str,
+    pub release_os: bool,
+    pub target_cpu: &'static str,
+    pub target_cpu_linker: &'static str,
 }
 
 impl TargetOptions {
@@ -67,15 +67,31 @@ pub fn rust_linker_path(options: &TargetOptions) -> Result<PathBuf> {
 }
 
 pub fn strip_tool_path() -> Result<PathBuf> {
+    Ok(toolchain_path()?.join("bin/strip"))
+}
+
+pub fn sysroot_path(options: &TargetOptions) -> Result<PathBuf> {
+    let magenta_name = if options.target_cpu == "x86-64" {
+        "build-magenta-pc-x86-64"
+    } else {
+        "build-magenta-qemu-arm64"
+    };
+    Ok(
+        fuchsia_root()?
+            .join("out")
+            .join("build-magenta")
+            .join(magenta_name)
+            .join("sysroot"),
+    )
+}
+
+pub fn toolchain_path() -> Result<PathBuf> {
     let platform_name = if is_mac() {
         "clang+llvm-x86_64-darwin"
     } else {
         "clang+llvm-x86_64-linux"
     };
-    Ok(
-        fuchsia_root()?
-            .join("buildtools/toolchain")
-            .join(platform_name)
-            .join("bin/strip"),
-    )
+    Ok(fuchsia_root()?.join("buildtools").join("toolchain").join(
+        platform_name,
+    ))
 }
