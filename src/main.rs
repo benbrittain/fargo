@@ -251,28 +251,46 @@ fn run_cargo(
     })
 }
 
+enum CommandGroups {
+    Run,
+    Test,
+    Emulator,
+    Support,
+    Native,
+}
 
-fn run() -> Result<()> {
-    let matches = App::new("fargo")
-        .version("v0.1.0")
-        .setting(AppSettings::GlobalVersion)
-        .about("Fargo is a prototype Fuchsia-specific wrapper around Cargo")
-        .arg(Arg::with_name("verbose").short("v").help(
-            "Print verbose output while performing commands",
-        ))
-        .arg(Arg::with_name("debug-os").long("debug-os").help(
-            "Use debug user.bootfs and ssh keys",
-        ))
-        .subcommand(
-            SubCommand::with_name("autotest")
-                .about("Auto build and test in Fuchsia device or emulator")
-                .arg(Arg::with_name("release").long("release").help(
-                    "Build release",
+
+fn setup_native_commands<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
+    app.subcommand(
+        SubCommand::with_name("pkg-config")
+            .about("Run pkg-config for the cross compilation environment")
+            .display_order(CommandGroups::Native as usize)
+            .arg(Arg::with_name("pkgconfig_param").index(1).multiple(true)),
+    ).subcommand(
+            SubCommand::with_name("configure")
+                .about(
+                    "Run a configure script for the cross compilation environment",
+                )
+                .display_order(CommandGroups::Native as usize)
+                .arg(Arg::with_name("configure_param").index(1).multiple(true))
+                .arg(Arg::with_name("no-host").long("no-host").help(
+                    "Don't pass --host to configure",
                 )),
         )
-        .subcommand(
+}
+
+fn setup_test_commands<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
+    app.subcommand(
+        SubCommand::with_name("autotest")
+            .about("Auto build and test in Fuchsia device or emulator")
+            .display_order(CommandGroups::Test as usize)
+            .arg(Arg::with_name("release").long("release").help(
+                "Build release",
+            )),
+    ).subcommand(
             SubCommand::with_name("build-tests")
                 .about("Build tests for Fuchsia device or emulator")
+                .display_order(CommandGroups::Test as usize)
                 .arg(
                     Arg::with_name("test")
                         .long("test")
@@ -286,6 +304,7 @@ fn run() -> Result<()> {
         .subcommand(
             SubCommand::with_name("test")
                 .about("Run unit tests on Fuchsia device or emulator")
+                .display_order(CommandGroups::Test as usize)
                 .arg(Arg::with_name("release").long("release").help(
                     "Build release",
                 ))
@@ -297,16 +316,20 @@ fn run() -> Result<()> {
                 )
                 .arg(Arg::with_name("test_params").index(1).multiple(true)),
         )
-        .subcommand(
-            SubCommand::with_name("build")
-                .about("Build binary targeting Fuchsia device or emulator")
-                .arg(Arg::with_name("release").long("release").help(
-                    "Build release",
-                )),
-        )
-        .subcommand(
+}
+
+fn setup_run_commands<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
+    app.subcommand(
+        SubCommand::with_name("build")
+            .about("Build binary targeting Fuchsia device or emulator")
+            .display_order(CommandGroups::Run as usize)
+            .arg(Arg::with_name("release").long("release").help(
+                "Build release",
+            )),
+    ).subcommand(
             SubCommand::with_name("run")
                 .about("Run binary on Fuchsia device or emulator")
+                .display_order(CommandGroups::Run as usize)
                 .arg(Arg::with_name("release").long("release").help(
                     "Build release",
                 ))
@@ -314,50 +337,63 @@ fn run() -> Result<()> {
                     "Use launch to run binary.",
                 )),
         )
-        .subcommand(
-            SubCommand::with_name("start")
-                .about("Start a Fuchsia emulator")
-                .arg(Arg::with_name("graphics").short("g").help(
-                    "Start a simulator with graphics enabled",
-                ))
-                .arg(Arg::with_name("no_net"))
-                .help("Don't set up networking."),
+}
+
+fn setup_emulator_commands<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
+    app.subcommand(
+        SubCommand::with_name("start")
+            .about("Start a Fuchsia emulator")
+            .display_order(CommandGroups::Emulator as usize)
+            .arg(Arg::with_name("graphics").short("g").help(
+                "Start a simulator with graphics enabled",
+            ))
+            .arg(Arg::with_name("no_net"))
+            .help("Don't set up networking."),
+    ).subcommand(
+            SubCommand::with_name("stop")
+                .about("Stop all Fuchsia emulators")
+                .display_order(CommandGroups::Emulator as usize),
         )
-        .subcommand(SubCommand::with_name("stop").about(
-            "Stop all Fuchsia emulators",
-        ))
         .subcommand(
             SubCommand::with_name("restart")
                 .about("Stop all Fuchsia emulators and start a new one")
+                .display_order(CommandGroups::Emulator as usize)
                 .arg(Arg::with_name("graphics").short("g").help(
                     "Start a simulator with graphics enabled",
                 ))
                 .arg(Arg::with_name("no_net"))
                 .help("Don't set up networking."),
         )
-        .subcommand(SubCommand::with_name("ssh").about(
-            "Open a shell on Fuchsia device or emulator",
-        ))
-        .subcommand(
+}
+
+fn setup_support_commands<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
+    app.subcommand(
+        SubCommand::with_name("ssh")
+            .about("Open a shell on Fuchsia device or emulator")
+            .display_order(CommandGroups::Support as usize),
+    ).subcommand(
             SubCommand::with_name("cargo")
                 .about(
                     "Run a cargo command for Fuchsia. Use -- to indicate that all \
-                         following arguments should be passed to cargo.",
+                             following arguments should be passed to cargo.",
                 )
+                .display_order(CommandGroups::Support as usize)
                 .arg(Arg::with_name("cargo_params").index(1).multiple(true)),
         )
-        .subcommand(
-            SubCommand::with_name("run-on-target")
-                .about("Act as a test runner for cargo")
-                .arg(Arg::with_name("launch").long("launch").help(
-                    "Use launch to run binary.",
-                ))
-                .arg(Arg::with_name("run_on_target_params").index(1).multiple(
-                    true,
-                ))
-                .setting(AppSettings::Hidden),
-        )
-        .subcommand(
+}
+
+fn setup_hidden_commands<'a, 'b>(app: App<'a, 'b>) -> App<'a, 'b> {
+    app.subcommand(
+        SubCommand::with_name("run-on-target")
+            .about("Act as a test runner for cargo")
+            .arg(Arg::with_name("launch").long("launch").help(
+                "Use launch to run binary.",
+            ))
+            .arg(Arg::with_name("run_on_target_params").index(1).multiple(
+                true,
+            ))
+            .setting(AppSettings::Hidden),
+    ).subcommand(
             SubCommand::with_name("update-crates")
                 .about("Update the FIDL generated crates")
                 .arg(
@@ -369,22 +405,29 @@ fn run() -> Result<()> {
                 )
                 .setting(AppSettings::Hidden),
         )
-        .subcommand(
-            SubCommand::with_name("pkg-config")
-                .about("Run pkg-config for the cross compilation environment")
-                .arg(Arg::with_name("pkgconfig_param").index(1).multiple(true)),
-        )
-        .subcommand(
-            SubCommand::with_name("configure")
-                .about(
-                    "Run a configure script for the cross compilation environment",
-                )
-                .arg(Arg::with_name("configure_param").index(1).multiple(true))
-                .arg(Arg::with_name("no-host").long("no-host").help(
-                    "Don't pass --host to configure",
-                )),
-        )
-        .get_matches();
+}
+
+fn run() -> Result<()> {
+    let app = App::new("fargo");
+
+    let app = app.version("v0.1.0")
+        .setting(AppSettings::GlobalVersion)
+        .about("Fargo is a prototype Fuchsia-specific wrapper around Cargo")
+        .arg(Arg::with_name("verbose").short("v").help(
+            "Print verbose output while performing commands",
+        ))
+        .arg(Arg::with_name("debug-os").long("debug-os").help(
+            "Use debug user.bootfs and ssh keys",
+        ));
+
+    let app = setup_test_commands(app);
+    let app = setup_emulator_commands(app);
+    let app = setup_run_commands(app);
+    let app = setup_support_commands(app);
+    let app = setup_hidden_commands(app);
+    let app = setup_native_commands(app);
+
+    let matches = app.get_matches();
 
     let verbose = matches.is_present("verbose");
     let target_options = TargetOptions::new(!matches.is_present("debug-os"));
