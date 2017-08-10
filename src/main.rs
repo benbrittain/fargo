@@ -167,12 +167,22 @@ fn run_tests(
         args.push(param);
     }
 
-    run_cargo(verbose, release, false, &args, &target_options)?;
+    run_cargo(verbose, release, false,&args, &target_options)?;
     Ok(())
 }
 
-fn build_binary(verbose: bool, release: bool, target_options: &TargetOptions) -> Result<(bool)> {
-    run_cargo(verbose, release, false, &vec!["build"], &target_options)
+fn build_binary(
+    verbose: bool,
+    release: bool,
+    target_options: &TargetOptions,
+    params: &[&str],
+) -> Result<(bool)> {
+    let mut args = vec!["build"];
+    for param in params {
+        args.push(param);
+    }
+
+    run_cargo(verbose, release, false, &args, &target_options)
 }
 
 fn run_binary(
@@ -180,8 +190,15 @@ fn run_binary(
     release: bool,
     launch: bool,
     target_options: &TargetOptions,
+    params: &[&str],
 ) -> Result<()> {
-    run_cargo(verbose, release, launch, &vec!["run"], &target_options)?;
+
+    let mut args = vec!["run"];
+    for param in params {
+        args.push(param);
+    }
+
+    run_cargo(verbose, release, launch, &args, &target_options)?;
     return Ok(());
 }
 
@@ -302,7 +319,14 @@ fn run() -> Result<()> {
                 .about("Build binary targeting Fuchsia device or emulator")
                 .arg(Arg::with_name("release").long("release").help(
                     "Build release",
-                )),
+                ))
+                .arg(Arg::with_name("example")
+                    .long("example")
+                    .takes_value(true)
+                    .help("Build a specific example from the examples/ dir.")
+                )
+                .arg(Arg::with_name("examples").long("examples").help(
+                    "Build all examples in the examples/ dir.")),
         )
         .subcommand(
             SubCommand::with_name("run")
@@ -312,7 +336,12 @@ fn run() -> Result<()> {
                 ))
                 .arg(Arg::with_name("launch").long("launch").help(
                     "Use launch to run binary.",
-                )),
+                ))
+                .arg(Arg::with_name("example")
+                    .long("example")
+                    .value_name("example")
+                    .help("Run a specific example from the examples/ dir.")
+                ),
         )
         .subcommand(
             SubCommand::with_name("start")
@@ -414,20 +443,39 @@ fn run() -> Result<()> {
     }
 
     if let Some(build_matches) = matches.subcommand_matches("build") {
+
+        let mut params = vec![];
+        if let Some(example) = build_matches.value_of("example") {
+            params.push("--example");
+            params.push(example);
+        }
+
+        if build_matches.is_presenet("examples") {
+            params.push("--examples");
+        }
+
         build_binary(
             verbose,
             build_matches.is_present("release"),
             &target_options,
+            &params
         ).chain_err(|| "building binary failed")?;
         return Ok(());
     }
 
     if let Some(run_matches) = matches.subcommand_matches("run") {
+        let mut params = vec![];
+        if let Some(example) = run_matches.value_of("example") {
+            params.push("--example");
+            params.push(example);
+        }
+
         return run_binary(
             verbose,
             run_matches.is_present("release"),
             run_matches.is_present("launch"),
             &target_options,
+            &params
         ).chain_err(|| "running binary failed");
     }
 
