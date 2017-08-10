@@ -450,7 +450,7 @@ fn run() -> Result<()> {
             params.push(example);
         }
 
-        if build_matches.is_presenet("examples") {
+        if build_matches.is_present("examples") {
             params.push("--examples");
         }
 
