@@ -49,11 +49,11 @@ something other than the default modules.
 If you are planning to use Qemu to run your Fuchsia Rust code, a good choice
 for modules is below, in env.sh form or underlying script as one prefers.
 
-    fset x86-64 --release --modules boot_headless,rust
+    fset x86-64 --release --modules boot_headless,magenta_rust
 
 or
 
-    packages/gn/gen.py -m boot_headless,rust --release
+    packages/gn/gen.py -m boot_headless,magenta_rust --release
 
 What `boot_headless` does in this instance is prevent the user shell from being
 launched after boot. Since the user shell requires
@@ -61,6 +61,10 @@ launched after boot. Since the user shell requires
 dependency on the [Vulkan graphics and compute
 API](https://www.khronos.org/vulkan), *and* Qemu cannot support Vulkan,
 `boot_headless` is pretty much a requirement for Qemu.
+
+If you want a quicker compile, limiting the modules to
+`magentix,magenta_rust,runtime_config` will compile a lot fewer packages
+but still be usable with Fargo.
 
 Once this build is complete, clone and build fargo.
 
