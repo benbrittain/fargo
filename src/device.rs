@@ -52,6 +52,7 @@ pub fn scp_to_device(
     let mut scp_command = Command::new("scp");
 
     scp_command
+        .env_remove("SSH_AUTH_SOCK")
         .arg(if verbose { "-v" } else { "-q" })
         .arg("-F")
         .arg(ssh_config)
@@ -86,6 +87,7 @@ pub fn ssh(verbose: bool, target_options: &TargetOptions, command: &str) -> Resu
         bail!("ssh config not found at {:?}", ssh_config);
     }
     let ssh_result = Command::new("ssh")
+        .env_remove("SSH_AUTH_SOCK")
         .arg("-q")
         .arg("-F")
         .arg(ssh_config)
