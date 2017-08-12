@@ -49,12 +49,13 @@ pub fn target_out_dir(options: &TargetOptions) -> Result<PathBuf> {
 }
 
 fn rust_buildtools_path() -> Result<PathBuf> {
-    let platform_name = if is_mac() {
-        "rust-x86_64-apple-darwin"
-    } else {
-        "rust-x86_64-unknown-linux-gnu"
-    };
-    Ok(fuchsia_root()?.join("buildtools/rust").join(platform_name))
+    let platform_name = if is_mac() { "mac-amd64" } else { "linux-amd64" };
+    Ok(
+        fuchsia_root()?
+            .join("buildtools")
+            .join(platform_name)
+            .join("rust"),
+    )
 }
 
 pub fn rust_c_path() -> Result<PathBuf> {
