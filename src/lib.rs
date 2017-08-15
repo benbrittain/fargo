@@ -2,6 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+//! While fargo is mainly intended to be a command line tool, this library
+//! exposes one function, `run_cargo`, that could be integrated directly into
+//! Rust programs that want to cross compile cargo crates on Fuchsia.
+
 #![recursion_limit = "1024"]
 
 extern crate clap;
@@ -40,7 +44,8 @@ use errors::*;
 
 use clap::{App, AppSettings, Arg, SubCommand};
 use device::{netaddr, scp_to_device, ssh, start_emulator, stop_emulator};
-use sdk::{rust_c_path, rust_linker_path, TargetOptions};
+use sdk::{rust_c_path, rust_linker_path};
+pub use sdk::TargetOptions;
 use cross::{pkg_config_path, run_configure, run_pkg_config};
 use std::path::PathBuf;
 use std::process::Command;
@@ -167,7 +172,7 @@ fn run_tests(
         args.push(param);
     }
 
-    run_cargo(verbose, release, false,&args, &target_options)?;
+    run_cargo(verbose, release, false, &args, &target_options)?;
     Ok(())
 }
 
@@ -202,7 +207,18 @@ fn run_binary(
     return Ok(());
 }
 
-fn run_cargo(
+/// Runs the cargo tool configured to target Fuchsia.
+///
+/// # Examples
+///
+/// ```
+/// use fargo::{run_cargo, TargetOptions};
+///
+/// let target_options = TargetOptions::new(true);
+/// run_cargo(false, true, false, &["--help"], &target_options);
+///
+/// ```
+pub fn run_cargo(
     verbose: bool,
     release: bool,
     launch: bool,
@@ -269,7 +285,8 @@ fn run_cargo(
 }
 
 
-fn run() -> Result<()> {
+#[doc(hidden)]
+pub fn run() -> Result<()> {
     let matches = App::new("fargo")
         .version("v0.1.0")
         .setting(AppSettings::GlobalVersion)
@@ -320,13 +337,15 @@ fn run() -> Result<()> {
                 .arg(Arg::with_name("release").long("release").help(
                     "Build release",
                 ))
-                .arg(Arg::with_name("example")
-                    .long("example")
-                    .takes_value(true)
-                    .help("Build a specific example from the examples/ dir.")
+                .arg(
+                    Arg::with_name("example")
+                        .long("example")
+                        .takes_value(true)
+                        .help("Build a specific example from the examples/ dir."),
                 )
                 .arg(Arg::with_name("examples").long("examples").help(
-                    "Build all examples in the examples/ dir.")),
+                    "Build all examples in the examples/ dir.",
+                )),
         )
         .subcommand(
             SubCommand::with_name("run")
@@ -337,10 +356,11 @@ fn run() -> Result<()> {
                 .arg(Arg::with_name("launch").long("launch").help(
                     "Use launch to run binary.",
                 ))
-                .arg(Arg::with_name("example")
-                    .long("example")
-                    .value_name("example")
-                    .help("Run a specific example from the examples/ dir.")
+                .arg(
+                    Arg::with_name("example")
+                        .long("example")
+                        .value_name("example")
+                        .help("Run a specific example from the examples/ dir."),
                 ),
         )
         .subcommand(
@@ -458,7 +478,7 @@ fn run() -> Result<()> {
             verbose,
             build_matches.is_present("release"),
             &target_options,
-            &params
+            &params,
         ).chain_err(|| "building binary failed")?;
         return Ok(());
     }
@@ -475,7 +495,7 @@ fn run() -> Result<()> {
             run_matches.is_present("release"),
             run_matches.is_present("launch"),
             &target_options,
-            &params
+            &params,
         ).chain_err(|| "running binary failed");
     }
 
@@ -570,22 +590,4 @@ fn run() -> Result<()> {
     }
 
     Ok(())
-}
-
-fn main() {
-    if let Err(ref e) = run() {
-        println!("error: {}", e);
-
-        for e in e.iter().skip(1) {
-            println!("caused by: {}", e);
-        }
-
-        // The backtrace is not always generated. Try to run this example
-        // with `RUST_BACKTRACE=1`.
-        if let Some(backtrace) = e.backtrace() {
-            println!("backtrace: {:?}", backtrace);
-        }
-
-        ::std::process::exit(1);
-    }
 }

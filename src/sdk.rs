@@ -8,6 +8,10 @@ use utils::is_mac;
 
 error_chain!{}
 
+/// The `TargetOptions` struct bundles together a number of parameters specific to
+/// the Fuchsia target that need to be passed through various internal functions. For
+/// the moment there is no way to set anything but the release_os field, but this
+/// will change when fargo starts supporting ARM targets.
 pub struct TargetOptions {
     pub release_os: bool,
     pub target_cpu: &'static str,
@@ -15,6 +19,15 @@ pub struct TargetOptions {
 }
 
 impl TargetOptions {
+    /// Constructs a new `TargetOptions`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use fargo::TargetOptions;
+    ///
+    /// let target_options = TargetOptions::new(true);
+    /// ```
     pub fn new(release_os: bool) -> TargetOptions {
         TargetOptions {
             release_os: release_os,
