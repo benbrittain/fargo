@@ -291,7 +291,7 @@ pub fn run() -> Result<()> {
         .version("v0.1.0")
         .setting(AppSettings::GlobalVersion)
         .about("Fargo is a prototype Fuchsia-specific wrapper around Cargo")
-        .arg(Arg::with_name("verbose").short("v").help(
+        .arg(Arg::with_name("verbose").long("verbose").short("v").help(
             "Print verbose output while performing commands",
         ))
         .arg(Arg::with_name("debug-os").long("debug-os").help(
