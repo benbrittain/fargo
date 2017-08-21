@@ -32,6 +32,15 @@ pub fn netaddr(verbose: bool) -> Result<String> {
     Ok(result)
 }
 
+static SSH_OPTIONS: &'static [&str] = &[
+    "-o",
+    "UserKnownHostsFile=/dev/null",
+    "-o",
+    "StrictHostKeyChecking=no",
+    "-o",
+    "ConnectTimeout=20",
+];
+
 pub fn scp_to_device(
     verbose: bool,
     target_options: &TargetOptions,
@@ -56,14 +65,7 @@ pub fn scp_to_device(
         .arg(if verbose { "-v" } else { "-q" })
         .arg("-F")
         .arg(ssh_config)
-        .args(
-            &[
-                "-o",
-                "UserKnownHostsFile=/dev/null",
-                "-o",
-                "StrictHostKeyChecking=no",
-            ],
-        )
+        .args(SSH_OPTIONS)
         .arg(source_path)
         .arg(destination_with_address);
 
@@ -91,14 +93,7 @@ pub fn ssh(verbose: bool, target_options: &TargetOptions, command: &str) -> Resu
         .arg("-q")
         .arg("-F")
         .arg(ssh_config)
-        .args(
-            &[
-                "-o",
-                "UserKnownHostsFile=/dev/null",
-                "-o",
-                "StrictHostKeyChecking=no",
-            ],
-        )
+        .args(SSH_OPTIONS)
         .arg(netaddr)
         .arg(command)
         .status()
