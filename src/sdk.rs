@@ -12,13 +12,15 @@ error_chain!{}
 /// the Fuchsia target that need to be passed through various internal functions. For
 /// the moment there is no way to set anything but the release_os field, but this
 /// will change when fargo starts supporting ARM targets.
-pub struct TargetOptions {
+#[derive(Debug)]
+pub struct TargetOptions<'a> {
     pub release_os: bool,
-    pub target_cpu: &'static str,
-    pub target_cpu_linker: &'static str,
+    pub target_cpu: &'a str,
+    pub target_cpu_linker: &'a str,
+    pub device_name: Option<&'a str>,
 }
 
-impl TargetOptions {
+impl<'a> TargetOptions<'a> {
     /// Constructs a new `TargetOptions`.
     ///
     /// # Examples
@@ -28,11 +30,13 @@ impl TargetOptions {
     ///
     /// let target_options = TargetOptions::new(true);
     /// ```
-    pub fn new(release_os: bool) -> TargetOptions {
+
+    pub fn new(release_os: bool, device_name: Option<&'a str>) -> TargetOptions {
         TargetOptions {
             release_os: release_os,
             target_cpu: "x86-64",
             target_cpu_linker: "x86_64",
+            device_name: device_name,
         }
     }
 }

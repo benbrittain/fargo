@@ -18,18 +18,44 @@ error_chain!{
     }
 }
 
-pub fn netaddr(verbose: bool) -> Result<String> {
+pub fn netaddr(verbose: bool, target_options: &TargetOptions) -> Result<String> {
     let fuchsia_root = fuchsia_root()?;
     let netaddr_binary = fuchsia_root.join("out/build-magenta/tools/netaddr");
-    let netaddr_result = Command::new(netaddr_binary).arg("--fuchsia").output()?;
+    let mut args = vec!["--fuchsia"];
+    if let Some(device_name) = target_options.device_name {
+        args.push(device_name);
+    }
+    let netaddr_result = Command::new(netaddr_binary).args(args).output()?;
     let result = str::from_utf8(&netaddr_result.stdout)
         .unwrap()
         .trim()
         .to_string();
     if verbose {
-        println!("netaddr result = {}", result);
+        println!("netaddr status = {}, result = {}", netaddr_result.status, result);
+    }
+    if !netaddr_result.status.success() {
+        let err_str = str::from_utf8(&netaddr_result.stderr)
+            .unwrap()
+            .trim()
+            .to_string();
+        bail!("netaddr failed with status {:?}: {}", netaddr_result.status, err_str);
     }
     Ok(result)
+}
+
+pub fn netls(verbose: bool) -> Result<()> {
+    let fuchsia_root = fuchsia_root()?;
+    let netls_binary = fuchsia_root.join("out/build-magenta/tools/netls");
+    let mut netls_command = Command::new(netls_binary);
+    netls_command.arg("--nowait").arg("--timeout=500");
+    if verbose {
+        println!("{:?}", netls_command);
+    }
+    let netls_status = netls_command.status()?;
+    if !netls_status.success() {
+        bail!("netlst failed with error {:?}", netls_status);
+    }
+    Ok(())
 }
 
 static SSH_OPTIONS: &'static [&str] = &[
@@ -83,7 +109,7 @@ pub fn scp_to_device(
 }
 
 pub fn ssh(verbose: bool, target_options: &TargetOptions, command: &str) -> Result<()> {
-    let netaddr = netaddr(verbose)?;
+    let netaddr = netaddr(verbose, &target_options)?;
     let ssh_config = target_out_dir(&target_options)?.join("ssh-keys/ssh_config");
     if !ssh_config.exists() {
         bail!("ssh config not found at {:?}", ssh_config);

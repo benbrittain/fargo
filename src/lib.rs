@@ -43,7 +43,7 @@ mod errors {
 use errors::*;
 
 use clap::{App, AppSettings, Arg, SubCommand};
-use device::{netaddr, scp_to_device, ssh, start_emulator, stop_emulator};
+use device::{netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
 use sdk::{rust_c_path, rust_linker_path};
 pub use sdk::TargetOptions;
 use cross::{pkg_config_path, run_configure, run_pkg_config};
@@ -60,7 +60,7 @@ fn run_program_on_target(
     launch: bool,
     params: &[&str],
 ) -> Result<()> {
-    let netaddr = netaddr(verbose)?;
+    let netaddr = netaddr(verbose, &target_options)?;
     if verbose {
         println!("netaddr {}", netaddr);
     }
@@ -247,6 +247,11 @@ pub fn run_cargo(
         runner_args.push("-v");
     }
 
+    if let Some(device_name) = target_options.device_name {
+        runner_args.push("--device-name");
+        runner_args.push(device_name);
+    }
+
     runner_args.push("run-on-target");
 
     if launch {
@@ -296,6 +301,10 @@ pub fn run() -> Result<()> {
         ))
         .arg(Arg::with_name("debug-os").long("debug-os").help(
             "Use debug user.bootfs and ssh keys",
+        ))
+        .arg(Arg::with_name("device-name").long("device-name").short("N")
+        .value_name("device-name").help(
+            "Name of device to target, needed if there are multiple devices visible on the network",
         ))
         .subcommand(
             SubCommand::with_name("autotest")
@@ -362,6 +371,10 @@ pub fn run() -> Result<()> {
                         .value_name("example")
                         .help("Run a specific example from the examples/ dir."),
                 ),
+        )
+        .subcommand(
+            SubCommand::with_name("list-devices")
+                .about("List visible Fuchsia devices")
         )
         .subcommand(
             SubCommand::with_name("start")
@@ -436,7 +449,14 @@ pub fn run() -> Result<()> {
         .get_matches();
 
     let verbose = matches.is_present("verbose");
-    let target_options = TargetOptions::new(!matches.is_present("debug-os"));
+    let target_options = TargetOptions::new(
+        !matches.is_present("debug-os"),
+        matches.value_of("device-name"),
+    );
+
+    if verbose {
+        println!("target_options = {:?}", target_options);
+    }
 
     if let Some(autotest_matches) = matches.subcommand_matches("autotest") {
         return autotest(
@@ -508,6 +528,10 @@ pub fn run() -> Result<()> {
             &test_target,
         ).chain_err(|| "building tests failed")?;
         return Ok(());
+    }
+
+    if let Some(_) = matches.subcommand_matches("list-devices") {
+        return netls(verbose).chain_err(|| "netls failed");
     }
 
     if let Some(start_matches) = matches.subcommand_matches("start") {
