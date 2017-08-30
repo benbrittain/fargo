@@ -578,7 +578,13 @@ pub fn run() -> Result<()> {
             .map(|x| x.collect())
             .unwrap_or(vec![]);
         let (program, args) = run_params.split_first().unwrap();
-        return run_program_on_target(&program, verbose, &target_options, false, &args);
+        return run_program_on_target(
+            &program,
+            verbose,
+            &target_options,
+            run_on_target_matches.is_present("launch"),
+            &args,
+        );
     }
 
     if let Some(update_matches) = matches.subcommand_matches("update-crates") {
