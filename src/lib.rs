@@ -172,7 +172,7 @@ fn run_tests(
         args.push(param);
     }
 
-    run_cargo(verbose, release, false, &args, &target_options)?;
+    run_cargo(verbose, release, false, &args, &target_options, None)?;
     Ok(())
 }
 
@@ -187,7 +187,7 @@ fn build_binary(
         args.push(param);
     }
 
-    run_cargo(verbose, release, false, &args, &target_options)
+    run_cargo(verbose, release, false, &args, &target_options, None)
 }
 
 fn run_binary(
@@ -203,11 +203,14 @@ fn run_binary(
         args.push(param);
     }
 
-    run_cargo(verbose, release, launch, &args, &target_options)?;
+    run_cargo(verbose, release, launch, &args, &target_options, None)?;
     return Ok(());
 }
 
-/// Runs the cargo tool configured to target Fuchsia.
+/// Runs the cargo tool configured to target Fuchsia. When used as a library,
+/// the runner options must contain the path to fargo or some other program
+/// that implements the `run-on-target` subcommand in a way compatible with
+/// fargo.
 ///
 /// # Examples
 ///
@@ -215,7 +218,7 @@ fn run_binary(
 /// use fargo::{run_cargo, TargetOptions};
 ///
 /// let target_options = TargetOptions::new(true, None);
-/// run_cargo(false, true, false, &["--help"], &target_options);
+/// run_cargo(false, true, false, &["--help"], &target_options, None);
 ///
 /// ```
 pub fn run_cargo(
@@ -224,6 +227,7 @@ pub fn run_cargo(
     launch: bool,
     args: &[&str],
     target_options: &TargetOptions,
+    runner: Option<PathBuf>,
 ) -> Result<()> {
     let mut target_args = vec!["--target", "x86_64-unknown-fuchsia"];
 
@@ -235,7 +239,11 @@ pub fn run_cargo(
         println!("target_args = {:?}", target_args);
     }
 
-    let fargo_path = fs::canonicalize(std::env::current_exe()?)?;
+    let fargo_path = if runner.is_some() {
+        runner.unwrap()
+    } else {
+        fs::canonicalize(std::env::current_exe()?)?
+    };
 
     let mut runner_args = vec![
         fargo_path.to_str().ok_or_else(
@@ -573,7 +581,7 @@ pub fn run() -> Result<()> {
             .values_of("cargo_params")
             .map(|x| x.collect())
             .unwrap_or(vec![]);
-        run_cargo(verbose, false, false, &cargo_params, &target_options)
+        run_cargo(verbose, false, false, &cargo_params, &target_options, None)
             .chain_err(|| "run cargo failed")?;
         return Ok(());
     }
