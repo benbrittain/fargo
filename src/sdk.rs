@@ -28,7 +28,7 @@ impl<'a> TargetOptions<'a> {
     /// ```
     /// use fargo::TargetOptions;
     ///
-    /// let target_options = TargetOptions::new(true);
+    /// let target_options = TargetOptions::new(true, Some("ivy-donut-grew-stoop"));
     /// ```
 
     pub fn new(release_os: bool, device_name: Option<&'a str>) -> TargetOptions {

@@ -181,7 +181,7 @@ fn build_binary(
     release: bool,
     target_options: &TargetOptions,
     params: &[&str],
-) -> Result<(bool)> {
+) -> Result<()> {
     let mut args = vec!["build"];
     for param in params {
         args.push(param);
@@ -214,7 +214,7 @@ fn run_binary(
 /// ```
 /// use fargo::{run_cargo, TargetOptions};
 ///
-/// let target_options = TargetOptions::new(true);
+/// let target_options = TargetOptions::new(true, None);
 /// run_cargo(false, true, false, &["--help"], &target_options);
 ///
 /// ```
@@ -224,7 +224,7 @@ pub fn run_cargo(
     launch: bool,
     args: &[&str],
     target_options: &TargetOptions,
-) -> Result<(bool)> {
+) -> Result<()> {
     let mut target_args = vec!["--target", "x86_64-unknown-fuchsia"];
 
     if release {
@@ -284,9 +284,15 @@ pub fn run_cargo(
         println!("cargo cmd: {:?}", cmd);
     }
 
-    cmd.status().chain_err(|| "Unable to run cargo").map(|s| {
-        s.success()
-    })
+    let cargo_status = cmd.status()?;
+    if !cargo_status.success() {
+        bail!(
+            "cargo exited with status {:?}",
+            cargo_status,
+        );
+    }
+
+    Ok(())
 }
 
 

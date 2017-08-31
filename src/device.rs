@@ -31,14 +31,22 @@ pub fn netaddr(verbose: bool, target_options: &TargetOptions) -> Result<String> 
         .trim()
         .to_string();
     if verbose {
-        println!("netaddr status = {}, result = {}", netaddr_result.status, result);
+        println!(
+            "netaddr status = {}, result = {}",
+            netaddr_result.status,
+            result
+        );
     }
     if !netaddr_result.status.success() {
         let err_str = str::from_utf8(&netaddr_result.stderr)
             .unwrap()
             .trim()
             .to_string();
-        bail!("netaddr failed with status {:?}: {}", netaddr_result.status, err_str);
+        bail!(
+            "netaddr failed with status {:?}: {}",
+            netaddr_result.status,
+            err_str
+        );
     }
     Ok(result)
 }
