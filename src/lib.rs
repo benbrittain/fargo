@@ -42,7 +42,7 @@ use errors::*;
 
 use clap::{App, AppSettings, Arg, SubCommand};
 use device::{netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
-use sdk::rust_linker_path;
+use sdk::{clang_linker_path, sysroot_path};
 pub use sdk::TargetOptions;
 use cross::{pkg_config_path, run_configure, run_pkg_config};
 use std::path::PathBuf;
@@ -273,10 +273,19 @@ pub fn run_cargo(
     let pkg_path = pkg_config_path(target_options)?;
     let mut cmd = Command::new("cargo");
 
-    cmd.env(
-        "CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
-        rust_linker_path(target_options)?.to_str().unwrap(),
-    ).env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_RUNNER", fargo_command)
+    cmd.env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_RUNNER", fargo_command)
+        .env(
+            "CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_RUSTFLAGS",
+            format!(
+                "-C link-arg=--target=x86_64-unknown-fuchsia \
+                -C link-arg=--sysroot={}",
+                sysroot_path(target_options)?.to_str().unwrap()
+            ),
+        )
+        .env(
+            "CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
+            clang_linker_path()?.to_str().unwrap(),
+        )
         .env("PKG_CONFIG_ALL_STATIC", "1")
         .env("PKG_CONFIG_ALLOW_CROSS", "1")
         .env("PKG_CONFIG_PATH", "")

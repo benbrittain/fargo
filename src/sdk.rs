@@ -65,11 +65,6 @@ pub fn target_out_dir(options: &TargetOptions) -> Result<PathBuf> {
     Ok(target_out_dir)
 }
 
-pub fn rust_linker_path(options: &TargetOptions) -> Result<PathBuf> {
-    let linker_name = format!("{}-unknown-fuchsia-cc", options.target_cpu_linker);
-    Ok(target_out_dir(options)?.join("host_x64").join(linker_name))
-}
-
 pub fn strip_tool_path() -> Result<PathBuf> {
     Ok(toolchain_path()?.join("bin/strip"))
 }
@@ -98,4 +93,8 @@ pub fn toolchain_path() -> Result<PathBuf> {
     Ok(fuchsia_root()?.join("buildtools").join("toolchain").join(
         platform_name,
     ))
+}
+
+pub fn clang_linker_path() -> Result<PathBuf> {
+    Ok(toolchain_path()?.join("bin").join("clang"))
 }
