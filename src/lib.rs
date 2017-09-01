@@ -11,10 +11,8 @@
 extern crate clap;
 #[macro_use]
 extern crate error_chain;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate serde_json;
 extern crate toml;
 extern crate uname;
 
@@ -44,7 +42,7 @@ use errors::*;
 
 use clap::{App, AppSettings, Arg, SubCommand};
 use device::{netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
-use sdk::{rust_c_path, rust_linker_path};
+use sdk::rust_linker_path;
 pub use sdk::TargetOptions;
 use cross::{pkg_config_path, run_configure, run_pkg_config};
 use std::path::PathBuf;
@@ -60,7 +58,7 @@ fn run_program_on_target(
     launch: bool,
     params: &[&str],
 ) -> Result<()> {
-    let netaddr = netaddr(verbose, &target_options)?;
+    let netaddr = netaddr(verbose, target_options)?;
     if verbose {
         println!("netaddr {}", netaddr);
     }
@@ -77,7 +75,7 @@ fn run_program_on_target(
     );
     scp_to_device(
         verbose,
-        &target_options,
+        target_options,
         &netaddr,
         &stripped_source_path,
         &destination_path,
@@ -92,7 +90,7 @@ fn run_program_on_target(
     if verbose {
         println!("running {}", command_string);
     }
-    ssh(verbose, &target_options, &command_string)?;
+    ssh(verbose, target_options, &command_string)?;
     Ok(())
 }
 
@@ -130,7 +128,7 @@ fn autotest(verbose: bool, release: bool, target_options: &TargetOptions) -> Res
                 // TODO(raggi): provide a fuller ignore flag/pattern match solution here.
                 if !path.starts_with(&tgt) && !path.starts_with(&git) {
                     println!("autotest: running tests because {:?}", path);
-                    run_tests(verbose, release, false, target_options, "", &vec![]).ok();
+                    run_tests(verbose, release, false, target_options, "", &[]).ok();
                 }
             }
             _ => {}
@@ -144,7 +142,7 @@ fn build_tests(
     target_options: &TargetOptions,
     test_target: &str,
 ) -> Result<bool> {
-    run_tests(verbose, release, true, target_options, test_target, &vec![])?;
+    run_tests(verbose, release, true, target_options, test_target, &[])?;
     Ok(true)
 }
 
@@ -159,7 +157,7 @@ fn run_tests(
 
     let mut args = vec!["test"];
 
-    if test_target.len() > 0 {
+    if !test_target.is_empty() {
         args.push("--test");
         args.push(test_target);
     }
@@ -172,7 +170,7 @@ fn run_tests(
         args.push(param);
     }
 
-    run_cargo(verbose, release, false, &args, &target_options, None)?;
+    run_cargo(verbose, release, false, &args, target_options, None)?;
     Ok(())
 }
 
@@ -187,7 +185,7 @@ fn build_binary(
         args.push(param);
     }
 
-    run_cargo(verbose, release, false, &args, &target_options, None)
+    run_cargo(verbose, release, false, &args, target_options, None)
 }
 
 fn run_binary(
@@ -203,8 +201,8 @@ fn run_binary(
         args.push(param);
     }
 
-    run_cargo(verbose, release, launch, &args, &target_options, None)?;
-    return Ok(());
+    run_cargo(verbose, release, launch, &args, target_options, None)?;
+    Ok(())
 }
 
 /// Runs the cargo tool configured to target Fuchsia. When used as a library,
@@ -272,15 +270,13 @@ pub fn run_cargo(
         println!("fargo_command: {:?}", fargo_command);
     }
 
-    let pkg_path = pkg_config_path(&target_options)?;
+    let pkg_path = pkg_config_path(target_options)?;
     let mut cmd = Command::new("cargo");
 
-    cmd.env("RUSTC", rust_c_path()?.to_str().unwrap())
-        .env(
-            "CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
-            rust_linker_path(&target_options)?.to_str().unwrap(),
-        )
-        .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_RUNNER", fargo_command)
+    cmd.env(
+        "CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
+        rust_linker_path(target_options)?.to_str().unwrap(),
+    ).env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_RUNNER", fargo_command)
         .env("PKG_CONFIG_ALL_STATIC", "1")
         .env("PKG_CONFIG_ALLOW_CROSS", "1")
         .env("PKG_CONFIG_PATH", "")
@@ -302,7 +298,6 @@ pub fn run_cargo(
 
     Ok(())
 }
-
 
 #[doc(hidden)]
 pub fn run() -> Result<()> {
@@ -484,14 +479,14 @@ pub fn run() -> Result<()> {
         let test_params = test_matches
             .values_of("test_params")
             .map(|x| x.collect())
-            .unwrap_or(vec![]);
+            .unwrap_or_else(|| vec![]);
         let test_target = test_matches.value_of("test").unwrap_or("");
         return run_tests(
             verbose,
             test_matches.is_present("release"),
             false,
             &target_options,
-            &test_target,
+            test_target,
             &test_params,
         ).chain_err(|| "running tests failed");
     }
@@ -539,12 +534,12 @@ pub fn run() -> Result<()> {
             verbose,
             build_test_matches.is_present("release"),
             &target_options,
-            &test_target,
+            test_target,
         ).chain_err(|| "building tests failed")?;
         return Ok(());
     }
 
-    if let Some(_) = matches.subcommand_matches("list-devices") {
+    if matches.subcommand_matches("list-devices").is_some() {
         return netls(verbose).chain_err(|| "netls failed");
     }
 
@@ -556,7 +551,7 @@ pub fn run() -> Result<()> {
         ).chain_err(|| "starting emulator failed");
     }
 
-    if let Some(_) = matches.subcommand_matches("stop") {
+    if matches.subcommand_matches("stop").is_some() {
         return stop_emulator().chain_err(|| "stopping emulator failed");
     }
 
@@ -572,7 +567,7 @@ pub fn run() -> Result<()> {
         ).chain_err(|| "in restart, starting emulator failed");
     }
 
-    if let Some(_) = matches.subcommand_matches("ssh") {
+    if matches.subcommand_matches("ssh").is_some() {
         return ssh(verbose, &target_options, "").chain_err(|| "ssh failed");
     }
 
@@ -580,7 +575,7 @@ pub fn run() -> Result<()> {
         let cargo_params = cargo_matches
             .values_of("cargo_params")
             .map(|x| x.collect())
-            .unwrap_or(vec![]);
+            .unwrap_or_else(|| vec![]);
         run_cargo(verbose, false, false, &cargo_params, &target_options, None)
             .chain_err(|| "run cargo failed")?;
         return Ok(());
@@ -590,27 +585,27 @@ pub fn run() -> Result<()> {
         let run_params = run_on_target_matches
             .values_of("run_on_target_params")
             .map(|x| x.collect())
-            .unwrap_or(vec![]);
+            .unwrap_or_else(|| vec![]);
         let (program, args) = run_params.split_first().unwrap();
         return run_program_on_target(
-            &program,
+            program,
             verbose,
             &target_options,
             run_on_target_matches.is_present("launch"),
-            &args,
+            args,
         );
     }
 
     if let Some(update_matches) = matches.subcommand_matches("update-crates") {
         let update_target = update_matches.value_of("target").unwrap();
-        return update_crates(&update_target).chain_err(|| "update-crates failed");
+        return update_crates(update_target).chain_err(|| "update-crates failed");
     }
 
     if let Some(pkg_matches) = matches.subcommand_matches("pkg-config") {
         let pkg_params = pkg_matches
             .values_of("pkgconfig_param")
             .map(|x| x.collect())
-            .unwrap_or(vec![]);
+            .unwrap_or_else(|| vec![]);
         let exit_code = run_pkg_config(verbose, &pkg_params, &target_options)
             .chain_err(|| "run_pkg_config failed")?;
         if exit_code != 0 {
@@ -623,7 +618,7 @@ pub fn run() -> Result<()> {
         let configure_params = configure_matches
             .values_of("configure_param")
             .map(|x| x.collect())
-            .unwrap_or(vec![]);
+            .unwrap_or_else(|| vec![]);
         run_configure(
             verbose,
             !configure_matches.is_present("no-host"),

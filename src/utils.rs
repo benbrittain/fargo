@@ -17,9 +17,8 @@ error_chain!{
 
 #[allow(dead_code)]
 pub fn duration_as_milliseconds(duration: &Duration) -> u64 {
-    let subsec_ms: u64 = duration.subsec_nanos() as u64 / 1000000;
-    let dur_ms = duration.as_secs() * 1000 + subsec_ms;
-    dur_ms
+    let subsec_ms: u64 = u64::from(duration.subsec_nanos()) / 1_000_000;
+    duration.as_secs() * 1000 + subsec_ms
 }
 
 pub fn is_mac() -> bool {

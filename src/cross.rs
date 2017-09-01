@@ -46,7 +46,7 @@ pub fn run_pkg_config(
 
     cmd.args(args)
         .env("PKG_CONFIG_PATH", "")
-        .env("PKG_CONFIG_LIBDIR", pkg_config_path(&target_options)?)
+        .env("PKG_CONFIG_LIBDIR", pkg_config_path(target_options)?)
         .env("PKG_CONFIG_ALL_STATIC", "1");
 
     if verbose {
@@ -74,12 +74,12 @@ pub fn run_configure(
         || "run_configure: canonicalize working directory",
     )?;
 
-    let cross_root = cross_root(&target_options)?;
+    let cross_root = cross_root(target_options)?;
     let cross_root_str = cross_root.to_str().unwrap();
     let cross_lib = cross_root.join("lib");
     let cross_lib_str = cross_lib.to_str().unwrap();
 
-    let sysroot_path = sysroot_path(&target_options)?;
+    let sysroot_path = sysroot_path(target_options)?;
 
     if verbose {
         println!("sysroot_path: {:?}", sysroot_path);
@@ -99,11 +99,11 @@ pub fn run_configure(
         cross_root.join("include").to_str().unwrap()
     );
 
-    let prev_flags = env::var("LDFLAGS").unwrap_or("".to_string());
+    let prev_flags = env::var("LDFLAGS").unwrap_or_default();
     let ld_flags = format!("{} {} -L{}", prev_flags, common_c_flags, cross_lib_str);
 
     if verbose {
-        println!("CFLAGS: {}", env::var("CFLAGS").unwrap_or("".to_string()));
+        println!("CFLAGS: {}", env::var("CFLAGS").unwrap_or_default());
         println!("LDFLAGS: {}", ld_flags);
     }
 
@@ -131,7 +131,7 @@ pub fn run_configure(
         .env("CPPFLAGS", &common_c_flags)
         .env("LDFLAGS", ld_flags)
         .env("PKG_CONFIG_PATH", "")
-        .env("PKG_CONFIG_LIBDIR", pkg_config_path(&target_options)?)
+        .env("PKG_CONFIG_LIBDIR", pkg_config_path(target_options)?)
         .env("PKG_CONFIG_ALL_STATIC", "1");
 
     if verbose {

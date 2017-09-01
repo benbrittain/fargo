@@ -94,44 +94,42 @@ fn look_for_crates(dir: &Path, root: &Path, target: &Path) -> io::Result<()> {
             let path = entry.path();
             if path.is_dir() {
                 look_for_crates(&path, root, target)?;
-            } else {
-                if let Some(file_name) = path.file_name() {
-                    let partial_parent = path.parent().unwrap().strip_prefix(root).unwrap();
-                    if file_name.to_str() == Some("Cargo.toml") {
+            } else if let Some(file_name) = path.file_name() {
+                let partial_parent = path.parent().unwrap().strip_prefix(root).unwrap();
+                if file_name.to_str() == Some("Cargo.toml") {
+                    let mut input = String::new();
+                    File::open(&path)
+                        .and_then(|mut f| f.read_to_string(&mut input))
+                        .unwrap();
+                    let decoded: Cargo = toml::from_str(&input).unwrap();
+                    if decoded.lib.is_some() {
+                        let rewritten = decoded.rewrite();
+                        let target_parent = target.join(partial_parent);
+                        fs::create_dir_all(&target_parent).unwrap();
+                        let toml2 = toml::to_string(&rewritten).unwrap();
+                        let target_cargo = target_parent.join("Cargo.toml");
+                        let mut file = File::create(target_cargo)?;
+                        file.write_all(LICENSE_TOML_FILE_HEADER.as_bytes())?;
+                        file.write_all(toml2.into_bytes().as_slice())?;
+                    }
+                } else if let Some(extension) = path.extension() {
+                    if extension.to_str() == Some("rs") {
+                        let target_parent = target.join(partial_parent);
+                        fs::create_dir_all(&target_parent).unwrap();
                         let mut input = String::new();
                         File::open(&path)
                             .and_then(|mut f| f.read_to_string(&mut input))
                             .unwrap();
-                        let decoded: Cargo = toml::from_str(&input).unwrap();
-                        if decoded.lib.is_some() {
-                            let rewritten = decoded.rewrite();
-                            let target_parent = target.join(partial_parent);
-                            fs::create_dir_all(&target_parent).unwrap();
-                            let toml2 = toml::to_string(&rewritten).unwrap();
-                            let target_cargo = target_parent.join("Cargo.toml");
-                            let mut file = File::create(target_cargo)?;
-                            file.write_all(&LICENSE_TOML_FILE_HEADER.as_bytes())?;
-                            file.write_all(toml2.into_bytes().as_slice())?;
-                        }
-                    } else {
-                        if let Some(extension) = path.extension() {
-                            if extension.to_str() == Some("rs") {
-                                let target_parent = target.join(partial_parent);
-                                fs::create_dir_all(&target_parent).unwrap();
-                                let mut input = String::new();
-                                File::open(&path)
-                                    .and_then(|mut f| f.read_to_string(&mut input))
-                                    .unwrap();
-                                let target_rust_file = target_parent.join(file_name);
-                                let mut file = File::create(target_rust_file)?;
-                                file.write_all(&LICENSE_RS_FILE_HEADER.as_bytes())?;
-                                file.write_all(input.into_bytes().as_slice())?;
-                            }
-                        }
+                        let target_rust_file = target_parent.join(file_name);
+                        let mut file = File::create(target_rust_file)?;
+                        file.write_all(LICENSE_RS_FILE_HEADER.as_bytes())?;
+                        file.write_all(input.into_bytes().as_slice())?;
                     }
+
                 }
             }
         }
+
     }
     Ok(())
 }

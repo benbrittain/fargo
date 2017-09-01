@@ -83,7 +83,7 @@ pub fn scp_to_device(
     destination_path: &str,
 ) -> Result<()> {
     let destination_with_address = format!("[{}]:{}", netaddr, destination_path);
-    let ssh_config = target_out_dir(&target_options)?.join("ssh-keys/ssh_config");
+    let ssh_config = target_out_dir(target_options)?.join("ssh-keys/ssh_config");
     if !ssh_config.exists() {
         bail!("ssh config not found at {:?}", ssh_config);
     }
@@ -117,8 +117,8 @@ pub fn scp_to_device(
 }
 
 pub fn ssh(verbose: bool, target_options: &TargetOptions, command: &str) -> Result<()> {
-    let netaddr = netaddr(verbose, &target_options)?;
-    let ssh_config = target_out_dir(&target_options)?.join("ssh-keys/ssh_config");
+    let netaddr = netaddr(verbose, target_options)?;
+    let ssh_config = target_out_dir(target_options)?.join("ssh-keys/ssh_config");
     if !ssh_config.exists() {
         bail!("ssh config not found at {:?}", ssh_config);
     }
@@ -199,7 +199,7 @@ pub fn setup_network_linux(user: &str) -> Result<()> {
             tap network device; password may be required."
         );
         let tunctl_status = Command::new("sudo")
-            .args(&["tunctl", "-b", "-u", &user, "-t", "qemu"])
+            .args(&["tunctl", "-b", "-u", user, "-t", "qemu"])
             .stdout(Stdio::null())
             .status()
             .map_err(|e| if e.kind() == ::std::io::ErrorKind::NotFound {
@@ -246,7 +246,7 @@ pub fn start_emulator(
     if !run_magenta_script.exists() {
         bail!("run magenta script not found at {:?}", run_magenta_script);
     }
-    let user_bootfs = target_out_dir(&target_options)?.join("user.bootfs");
+    let user_bootfs = target_out_dir(target_options)?.join("user.bootfs");
     if !user_bootfs.exists() {
         bail!("user.bootfs not found at {:?}", user_bootfs);
     }
