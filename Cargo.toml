@@ -16,3 +16,6 @@ notify = "4.0.0"
 [[bin]]
 name = "fargo"
 doc = false
+
+[workspace]
+members = [ "cratest", ]
