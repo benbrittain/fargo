@@ -1,9 +1,9 @@
 use sdk::fuchsia_root;
 use std::collections::HashMap;
-use std::io;
-use std::io::{Read, Write};
 use std::fs;
 use std::fs::File;
+use std::io;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use toml;
 
@@ -69,9 +69,7 @@ impl Cargo {
                 if k == "magenta" || k == "mxruntime" {
                     v.version = Some("0.1.0".to_string());
                 } else {
-                    v.git = Some(
-                        "https://fuchsia.googlesource.com/fuchsia-crates".to_string(),
-                    );
+                    v.git = Some("https://fuchsia.googlesource.com/fuchsia-crates".to_string());
                 }
                 new_deps_map.insert(k, v);
             }
@@ -98,9 +96,7 @@ fn look_for_crates(dir: &Path, root: &Path, target: &Path) -> io::Result<()> {
                 let partial_parent = path.parent().unwrap().strip_prefix(root).unwrap();
                 if file_name.to_str() == Some("Cargo.toml") {
                     let mut input = String::new();
-                    File::open(&path)
-                        .and_then(|mut f| f.read_to_string(&mut input))
-                        .unwrap();
+                    File::open(&path).and_then(|mut f| f.read_to_string(&mut input)).unwrap();
                     let decoded: Cargo = toml::from_str(&input).unwrap();
                     if decoded.lib.is_some() {
                         let rewritten = decoded.rewrite();
@@ -117,9 +113,7 @@ fn look_for_crates(dir: &Path, root: &Path, target: &Path) -> io::Result<()> {
                         let target_parent = target.join(partial_parent);
                         fs::create_dir_all(&target_parent).unwrap();
                         let mut input = String::new();
-                        File::open(&path)
-                            .and_then(|mut f| f.read_to_string(&mut input))
-                            .unwrap();
+                        File::open(&path).and_then(|mut f| f.read_to_string(&mut input)).unwrap();
                         let target_rust_file = target_parent.join(file_name);
                         let mut file = File::create(target_rust_file)?;
                         file.write_all(LICENSE_RS_FILE_HEADER.as_bytes())?;

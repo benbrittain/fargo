@@ -41,13 +41,13 @@ mod errors {
 use errors::*;
 
 use clap::{App, AppSettings, Arg, SubCommand};
+use cross::{pkg_config_path, run_configure, run_pkg_config};
 use device::{netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
 use sdk::{clang_linker_path, sysroot_path};
 pub use sdk::TargetOptions;
-use cross::{pkg_config_path, run_configure, run_pkg_config};
+use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use std::fs;
 use update_crates::update_crates;
 use utils::strip_binary;
 
@@ -64,22 +64,10 @@ fn run_program_on_target(
     }
     let source_path = PathBuf::from(&filename);
     let stripped_source_path = strip_binary(&source_path)?;
-    let destination_path = format!(
-        "/tmp/{}",
-        stripped_source_path.file_name().unwrap().to_string_lossy()
-    );
-    println!(
-        "copying {} to {}",
-        source_path.to_string_lossy(),
-        destination_path
-    );
-    scp_to_device(
-        verbose,
-        target_options,
-        &netaddr,
-        &stripped_source_path,
-        &destination_path,
-    )?;
+    let destination_path =
+        format!("/tmp/{}", stripped_source_path.file_name().unwrap().to_string_lossy());
+    println!("copying {} to {}", source_path.to_string_lossy(), destination_path);
+    scp_to_device(verbose, target_options, &netaddr, &stripped_source_path, &destination_path)?;
     let mut command_string = (if launch { "launch " } else { "" }).to_string();
     command_string.push_str(&destination_path);
     for param in params {
@@ -96,15 +84,14 @@ fn run_program_on_target(
 
 extern crate notify;
 
-use notify::{RecommendedWatcher, Watcher, RecursiveMode};
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use std::sync::mpsc::channel;
 use std::time::Duration;
 
 fn autotest(verbose: bool, release: bool, target_options: &TargetOptions) -> Result<()> {
     let (tx, rx) = channel();
-    let mut watcher: RecommendedWatcher = Watcher::new(tx, Duration::from_secs(1)).chain_err(
-        || "autotest: watcher creation failed",
-    )?;
+    let mut watcher: RecommendedWatcher =
+        Watcher::new(tx, Duration::from_secs(1)).chain_err(|| "autotest: watcher creation failed")?;
 
     let cwd = std::fs::canonicalize(std::env::current_dir()?).chain_err(
         || "autotest: canonicalize working directory",
@@ -112,9 +99,7 @@ fn autotest(verbose: bool, release: bool, target_options: &TargetOptions) -> Res
     let tgt = cwd.join("target");
     let git = cwd.join(".git");
 
-    watcher.watch(&cwd, RecursiveMode::Recursive).chain_err(
-        || "autotest: watch failed",
-    )?;
+    watcher.watch(&cwd, RecursiveMode::Recursive).chain_err(|| "autotest: watch failed")?;
 
     println!("autotest: started");
     loop {
@@ -243,11 +228,8 @@ pub fn run_cargo(
         fs::canonicalize(std::env::current_exe()?)?
     };
 
-    let mut runner_args = vec![
-        fargo_path.to_str().ok_or_else(
-            || "unable to convert path to utf8 encoding"
-        )?,
-    ];
+    let mut runner_args =
+        vec![fargo_path.to_str().ok_or_else(|| "unable to convert path to utf8 encoding")?];
 
     if verbose {
         runner_args.push("-v");
@@ -282,10 +264,7 @@ pub fn run_cargo(
                 sysroot_path(target_options)?.to_str().unwrap()
             ),
         )
-        .env(
-            "CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
-            clang_linker_path()?.to_str().unwrap(),
-        )
+        .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER", clang_linker_path()?.to_str().unwrap())
         .env("PKG_CONFIG_ALL_STATIC", "1")
         .env("PKG_CONFIG_ALLOW_CROSS", "1")
         .env("PKG_CONFIG_PATH", "")
@@ -467,28 +446,20 @@ pub fn run() -> Result<()> {
         .get_matches();
 
     let verbose = matches.is_present("verbose");
-    let target_options = TargetOptions::new(
-        !matches.is_present("debug-os"),
-        matches.value_of("device-name"),
-    );
+    let target_options =
+        TargetOptions::new(!matches.is_present("debug-os"), matches.value_of("device-name"));
 
     if verbose {
         println!("target_options = {:?}", target_options);
     }
 
     if let Some(autotest_matches) = matches.subcommand_matches("autotest") {
-        return autotest(
-            verbose,
-            autotest_matches.is_present("release"),
-            &target_options,
-        );
+        return autotest(verbose, autotest_matches.is_present("release"), &target_options);
     }
 
     if let Some(test_matches) = matches.subcommand_matches("test") {
-        let test_params = test_matches
-            .values_of("test_params")
-            .map(|x| x.collect())
-            .unwrap_or_else(|| vec![]);
+        let test_params =
+            test_matches.values_of("test_params").map(|x| x.collect()).unwrap_or_else(|| vec![]);
         let test_target = test_matches.value_of("test").unwrap_or("");
         return run_tests(
             verbose,
@@ -512,12 +483,8 @@ pub fn run() -> Result<()> {
             params.push("--examples");
         }
 
-        build_binary(
-            verbose,
-            build_matches.is_present("release"),
-            &target_options,
-            &params,
-        ).chain_err(|| "building binary failed")?;
+        build_binary(verbose, build_matches.is_present("release"), &target_options, &params)
+            .chain_err(|| "building binary failed")?;
         return Ok(());
     }
 
@@ -565,9 +532,7 @@ pub fn run() -> Result<()> {
     }
 
     if let Some(restart_matches) = matches.subcommand_matches("restart") {
-        stop_emulator().chain_err(
-            || "in restart, stopping emulator failed",
-        )?;
+        stop_emulator().chain_err(|| "in restart, stopping emulator failed")?;
 
         return start_emulator(
             restart_matches.is_present("graphics"),
@@ -581,12 +546,11 @@ pub fn run() -> Result<()> {
     }
 
     if let Some(cargo_matches) = matches.subcommand_matches("cargo") {
-        let cargo_params = cargo_matches
-            .values_of("cargo_params")
-            .map(|x| x.collect())
-            .unwrap_or_else(|| vec![]);
-        run_cargo(verbose, false, false, &cargo_params, &target_options, None)
-            .chain_err(|| "run cargo failed")?;
+        let cargo_params =
+            cargo_matches.values_of("cargo_params").map(|x| x.collect()).unwrap_or_else(|| vec![]);
+        run_cargo(verbose, false, false, &cargo_params, &target_options, None).chain_err(
+            || "run cargo failed",
+        )?;
         return Ok(());
     }
 
@@ -611,12 +575,11 @@ pub fn run() -> Result<()> {
     }
 
     if let Some(pkg_matches) = matches.subcommand_matches("pkg-config") {
-        let pkg_params = pkg_matches
-            .values_of("pkgconfig_param")
-            .map(|x| x.collect())
-            .unwrap_or_else(|| vec![]);
-        let exit_code = run_pkg_config(verbose, &pkg_params, &target_options)
-            .chain_err(|| "run_pkg_config failed")?;
+        let pkg_params =
+            pkg_matches.values_of("pkgconfig_param").map(|x| x.collect()).unwrap_or_else(|| vec![]);
+        let exit_code = run_pkg_config(verbose, &pkg_params, &target_options).chain_err(
+            || "run_pkg_config failed",
+        )?;
         if exit_code != 0 {
             ::std::process::exit(exit_code);
         }

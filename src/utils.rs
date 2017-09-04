@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+use sdk::strip_tool_path;
 use std::path::PathBuf;
 use std::process::Command;
 use std::str;
 use std::time::Duration;
 use uname::uname;
-use sdk::strip_tool_path;
 
 error_chain!{
     links {

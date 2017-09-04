@@ -2,11 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-use std::env;
-use std::path::{PathBuf, Path};
-use std::process::{Command, Stdio};
+use sdk::{TargetOptions, fuchsia_root, target_out_dir};
 use std::{str, thread, time};
-use sdk::{fuchsia_root, target_out_dir, TargetOptions};
+use std::env;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use utils::is_mac;
 
 error_chain!{
@@ -26,27 +26,13 @@ pub fn netaddr(verbose: bool, target_options: &TargetOptions) -> Result<String> 
         args.push(device_name);
     }
     let netaddr_result = Command::new(netaddr_binary).args(args).output()?;
-    let result = str::from_utf8(&netaddr_result.stdout)
-        .unwrap()
-        .trim()
-        .to_string();
+    let result = str::from_utf8(&netaddr_result.stdout).unwrap().trim().to_string();
     if verbose {
-        println!(
-            "netaddr status = {}, result = {}",
-            netaddr_result.status,
-            result
-        );
+        println!("netaddr status = {}, result = {}", netaddr_result.status, result);
     }
     if !netaddr_result.status.success() {
-        let err_str = str::from_utf8(&netaddr_result.stderr)
-            .unwrap()
-            .trim()
-            .to_string();
-        bail!(
-            "netaddr failed with status {:?}: {}",
-            netaddr_result.status,
-            err_str
-        );
+        let err_str = str::from_utf8(&netaddr_result.stderr).unwrap().trim().to_string();
+        bail!("netaddr failed with status {:?}: {}", netaddr_result.status, err_str);
     }
     Ok(result)
 }
@@ -143,12 +129,10 @@ pub fn ssh(verbose: bool, target_options: &TargetOptions, command: &str) -> Resu
 pub fn setup_network_mac(user: &str) -> Result<()> {
     println!("Calling sudo ifconfig to bring up tap0 interface; password may be required.");
 
-    let chown_status = Command::new("sudo")
-        .arg("chown")
-        .arg(user)
-        .arg("/dev/tap0")
-        .status()
-        .chain_err(|| "couldn't run chown")?;
+    let chown_status =
+        Command::new("sudo").arg("chown").arg(user).arg("/dev/tap0").status().chain_err(
+            || "couldn't run chown",
+        )?;
 
     if !chown_status.success() {
         bail!("chown failed: {}", chown_status);
@@ -178,9 +162,7 @@ pub fn setup_network_mac(user: &str) -> Result<()> {
 
     println!("tap0 enabled");
 
-    Command::new("stty").arg("sane").status().chain_err(
-        || "couldn't run stty",
-    )?;
+    Command::new("stty").arg("sane").status().chain_err(|| "couldn't run stty")?;
 
     Ok(())
 }
@@ -213,12 +195,10 @@ pub fn setup_network_linux(user: &str) -> Result<()> {
         }
     }
 
-    let ifconfig_status = Command::new("sudo")
-        .arg("ifconfig")
-        .arg("qemu")
-        .arg("up")
-        .status()
-        .chain_err(|| "couldn't run ifconfig")?;
+    let ifconfig_status =
+        Command::new("sudo").arg("ifconfig").arg("qemu").arg("up").status().chain_err(
+            || "couldn't run ifconfig",
+        )?;
 
     if !ifconfig_status.success() {
         bail!("ifconfig failed");
@@ -229,11 +209,7 @@ pub fn setup_network_linux(user: &str) -> Result<()> {
 
 pub fn setup_network() -> Result<()> {
     let user = env::var("USER").chain_err(|| "No $USER env var found.")?;
-    if is_mac() {
-        setup_network_mac(&user)
-    } else {
-        setup_network_linux(&user)
-    }
+    if is_mac() { setup_network_mac(&user) } else { setup_network_linux(&user) }
 }
 
 pub fn start_emulator(
@@ -265,11 +241,7 @@ pub fn start_emulator(
 
     println!("emulator started with process ID {}", child.id());
 
-    if with_networking {
-        setup_network()
-    } else {
-        Ok(())
-    }
+    if with_networking { setup_network() } else { Ok(()) }
 }
 
 pub fn stop_emulator() -> Result<()> {

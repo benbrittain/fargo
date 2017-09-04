@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-use sdk::{sysroot_path, TargetOptions, toolchain_path};
+use sdk::{TargetOptions, sysroot_path, toolchain_path};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -20,16 +20,9 @@ error_chain!{
 }
 
 pub fn cross_root(target_options: &TargetOptions) -> Result<PathBuf> {
-    let home_value = env::var("HOME").chain_err(
-        || "HOME environmental variable not set",
-    )?;
+    let home_value = env::var("HOME").chain_err(|| "HOME environmental variable not set")?;
 
-    Ok(
-        PathBuf::from(home_value)
-            .join(".fargo")
-            .join("native_deps")
-            .join(target_options.target_cpu),
-    )
+    Ok(PathBuf::from(home_value).join(".fargo").join("native_deps").join(target_options.target_cpu))
 }
 
 pub fn pkg_config_path(target_options: &TargetOptions) -> Result<PathBuf> {
@@ -53,14 +46,10 @@ pub fn run_pkg_config(
         println!("pkg-config: {:?}", cmd);
     }
 
-    cmd.status().chain_err(|| "Unable to run pkg-config").map(
-        |s| {
-            match s.code() {
-                Some(code) => code,
-                None => 1,
-            }
-        },
-    )
+    cmd.status().chain_err(|| "Unable to run pkg-config").map(|s| match s.code() {
+        Some(code) => code,
+        None => 1,
+    })
 }
 
 pub fn run_configure(
@@ -138,9 +127,5 @@ pub fn run_configure(
         println!("configure: {:?}", cmd);
     }
 
-    cmd.status().chain_err(|| "Unable to run configure").map(
-        |s| {
-            s.success()
-        },
-    )
+    cmd.status().chain_err(|| "Unable to run configure").map(|s| s.success())
 }

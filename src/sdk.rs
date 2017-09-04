@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-use std::path::PathBuf;
 use std::env;
+use std::path::PathBuf;
 use utils::is_mac;
 
 error_chain!{}
@@ -52,11 +52,7 @@ pub fn fuchsia_root() -> Result<PathBuf> {
 
 pub fn target_out_dir(options: &TargetOptions) -> Result<PathBuf> {
     let fuchsia_root = fuchsia_root()?;
-    let out_dir_name_prefix = if options.release_os {
-        "release"
-    } else {
-        "debug"
-    };
+    let out_dir_name_prefix = if options.release_os { "release" } else { "debug" };
     let out_dir_name = format!("{}-{}", out_dir_name_prefix, options.target_cpu);
     let target_out_dir = fuchsia_root.join("out").join(out_dir_name);
     if !target_out_dir.exists() {
@@ -75,24 +71,13 @@ pub fn sysroot_path(options: &TargetOptions) -> Result<PathBuf> {
     } else {
         "build-magenta-qemu-arm64"
     };
-    Ok(
-        fuchsia_root()?
-            .join("out")
-            .join("build-magenta")
-            .join(magenta_name)
-            .join("sysroot"),
-    )
+    Ok(fuchsia_root()?.join("out").join("build-magenta").join(magenta_name).join("sysroot"))
 }
 
 pub fn toolchain_path() -> Result<PathBuf> {
-    let platform_name = if is_mac() {
-        "clang+llvm-x86_64-darwin"
-    } else {
-        "clang+llvm-x86_64-linux"
-    };
-    Ok(fuchsia_root()?.join("buildtools").join("toolchain").join(
-        platform_name,
-    ))
+    let platform_name =
+        if is_mac() { "clang+llvm-x86_64-darwin" } else { "clang+llvm-x86_64-linux" };
+    Ok(fuchsia_root()?.join("buildtools").join("toolchain").join(platform_name))
 }
 
 pub fn clang_linker_path() -> Result<PathBuf> {
