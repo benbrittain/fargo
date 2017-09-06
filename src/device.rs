@@ -162,8 +162,6 @@ pub fn setup_network_mac(user: &str) -> Result<()> {
 
     println!("tap0 enabled");
 
-    Command::new("stty").arg("sane").status().chain_err(|| "couldn't run stty")?;
-
     Ok(())
 }
 
@@ -209,7 +207,13 @@ pub fn setup_network_linux(user: &str) -> Result<()> {
 
 pub fn setup_network() -> Result<()> {
     let user = env::var("USER").chain_err(|| "No $USER env var found.")?;
-    if is_mac() { setup_network_mac(&user) } else { setup_network_linux(&user) }
+    if is_mac() {
+        setup_network_mac(&user)?;
+    } else {
+        setup_network_linux(&user)?;
+    }
+    Command::new("stty").arg("sane").status().chain_err(|| "couldn't run stty")?;
+    Ok(())
 }
 
 pub fn start_emulator(
