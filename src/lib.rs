@@ -15,6 +15,9 @@ extern crate clap;
 extern crate error_chain;
 #[macro_use]
 extern crate nom;
+#[macro_use]
+extern crate serde_derive;
+extern crate toml;
 extern crate uname;
 
 mod build_fidl_crates;
