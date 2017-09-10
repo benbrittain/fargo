@@ -7,15 +7,20 @@
 //! Rust programs that want to cross compile cargo crates on Fuchsia.
 
 #![recursion_limit = "1024"]
+#![allow(unused_imports)]
+#![allow(dead_code)]
 
 extern crate clap;
 #[macro_use]
 extern crate error_chain;
 #[macro_use]
+extern crate nom;
+#[macro_use]
 extern crate serde_derive;
 extern crate toml;
 extern crate uname;
 
+mod build_fidl_crates;
 mod device;
 mod cross;
 mod sdk;
