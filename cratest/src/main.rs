@@ -7,19 +7,18 @@ extern crate clap;
 extern crate git2;
 extern crate rayon;
 extern crate reqwest;
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
 extern crate tempdir;
 
+use git2::Repository;
+use rayon::prelude::*;
 use std::collections::HashSet;
 use std::fs;
 use std::io::Read;
 use std::iter::FromIterator;
 use std::process::Command;
-use git2::Repository;
-use rayon::prelude::*;
 use tempdir::TempDir;
 
 // If unspecified, test this many crates
@@ -73,13 +72,11 @@ fn main() {
     let restart_emu = matches.is_present("restart");
     let start_emu = matches.is_present("start");
     let keep_tmp = matches.is_present("keep");
-    let excludes =
-        HashSet::<String>::from_iter(values_t!(matches, "excludes", String).unwrap_or(Vec::new()));
-
-    println!(
-        "Running cratest on the top {} crates from crates.io...",
-        num
+    let excludes = HashSet::<String>::from_iter(
+        values_t!(matches, "excludes", String).unwrap_or_else(|_| Vec::new()),
     );
+
+    println!("Running cratest on the top {} crates from crates.io...", num);
 
     let crate_uri: String = [
         "https://crates.io/api/v1/crates?page=1&per_page=",
@@ -90,7 +87,7 @@ fn main() {
 
     if verbose {
         println!("Downloading crates from {}", crate_uri);
-        if excludes.len() > 0 {
+        if !excludes.is_empty() {
             println!("Excluding {} crates", excludes.len());
         }
     }
@@ -103,20 +100,16 @@ fn main() {
     let res: Crates = serde_json::from_str(&content).unwrap();
 
     if restart_emu {
-        Command::new("fargo").arg("restart").status().expect(
-            "failed to run fargo restart",
-        );
+        Command::new("fargo").arg("restart").status().expect("failed to run fargo restart");
     } else if start_emu {
-        Command::new("fargo").arg("start").status().expect(
-            "failed to run fargo start",
-        );
+        Command::new("fargo").arg("start").status().expect("failed to run fargo start");
     }
 
     let tmpdir = TempDir::new("cratest").unwrap();
 
     let results: Vec<CrateResult> = res.crates
         .par_iter()
-        .map(|ref cr| {
+        .map(|cr| {
             if excludes.contains(&cr.id) {
                 if verbose {
                     println!("Skipping {} (excluded)", &cr.id);
@@ -130,11 +123,9 @@ fn main() {
             fs::create_dir(&crdir).unwrap();
             Repository::clone(&cr.repository, &crdir).unwrap();
 
-            let output = Command::new("fargo")
-                .arg("test")
-                .current_dir(&crdir)
-                .output()
-                .expect("failed to execute fargo test");
+            let output = Command::new("fargo").arg("test").current_dir(&crdir).output().expect(
+                "failed to execute fargo test",
+            );
             println!("crate: {}", &cr.id);
             println!("status: {}", output.status);
             if verbose {
@@ -166,7 +157,7 @@ fn main() {
     );
 
     for &(hdr, ref results) in &[("Successes", succ), ("Failures", fail), ("Excluded", excl)] {
-        if results.len() > 0 {
+        if !results.is_empty() {
             println!("{}({}): {:?}", hdr, results.len(), results);
         }
     }
