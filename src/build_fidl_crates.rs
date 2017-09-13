@@ -58,7 +58,6 @@ static INPUT_FIDL_ASSIGNMENT: &'static str = r#"
   ]
 "#;
 
-
 use nom::{IResult, Needed, alpha, alphanumeric, anychar, digit};
 use nom::ErrorKind::{Alt, Digit, Tag};
 use nom::IError::Incomplete;
@@ -238,8 +237,24 @@ named!(gn_parenthsized_exp <&str,GnExpr>,
     delimited!(ws!(tag!("(")), gn_expr, ws!(tag!(")")))
 );
 
+named!(gn_expr_comma <&str, GnExpr>,
+    do_parse!(
+        expr: gn_primary_expr >>
+        opt!(ws!(tag!(","))) >>
+        ((expr))
+    )
+);
+
+named!(gn_expr_list_trailing_comma <&str,GnExpr>,
+    do_parse!(
+        list: many1!(gn_expr_comma) >>
+        opt!(gn_primary_expr) >>
+        ((GnExpr::new_expression_list_from_vec(list)))
+    )
+);
+
 named!(gn_bracketed_expression_list <&str,GnExpr>,
-    delimited!(ws!(tag!("[")), gn_expr_list, ws!(tag!("]")))
+    delimited!(ws!(tag!("[")), gn_expr_list_trailing_comma, ws!(tag!("]")))
 );
 
 named!(gn_primary_expr <&str,GnExpr>, alt!(
@@ -250,17 +265,27 @@ named!(gn_primary_expr <&str,GnExpr>, alt!(
     map!(gn_array_access, GnExpr::new_array_access) |
     map!(gn_scope_access, GnExpr::new_scope_access) |
     map!(gn_parenthsized_exp, GnExpr::new_expression) |
-    map!(gn_integer, GnExpr::new_integer) 
+    map!(gn_integer, GnExpr::new_integer)
 ));
 
-named!(gn_expr <&str,GnExpr>, alt!(
+named!(gn_unary_expr <&str, GnExpr>, alt!(
+    gn_primary_expr |
+    do_parse!(
+        op: gn_unary_op >>
+        expr: gn_unary_expr >>
+        (GnExpr::new_unary_expression(op,expr)))
+));
+
+named!(gn_expr <&str,GnExpr>,
+    preceded!(not!(ws!(tag!("]"))),
+    alt!(
     gn_unary_expr |
     do_parse!(
-        l_expr: gn_expr >> 
+        l_expr: gn_expr >>
         op: gn_binary_op >>
         r_expr: gn_expr >>
     ((GnExpr::new_binary_expression(l_expr, op, r_expr))))
-));
+)));
 
 named!(gn_array_access <&str,GnArrayAccess>, do_parse!(
     array: gn_identifier >> tag!("[") >> expr: gn_expr >> tag!("]") >>
@@ -269,7 +294,7 @@ named!(gn_array_access <&str,GnArrayAccess>, do_parse!(
 
 named!(gn_expr_list <&str,GnExpr>,
     do_parse!(
-        expressions: separated_list_complete!(ws!(tag!(",")), gn_expr) >> 
+        expressions: separated_list_complete!(ws!(tag!(",")), gn_expr) >>
         ((GnExpr::new_expression_list_from_vec(expressions)))
     )
 );
@@ -287,14 +312,6 @@ named!(gn_call <&str,GnCall>, do_parse!(
         params: Box::new(params),
         block: if block.is_some() { Some(Box::new(block.unwrap())) } else { None },
         }))
-));
-
-named!(gn_unary_expr <&str, GnExpr>, alt!(
-    gn_primary_expr |
-    do_parse!(
-        op: gn_unary_op >>
-        expr: gn_unary_expr >>
-        (GnExpr::new_unary_expression(op,expr)))
 ));
 
 named!(gn_l_value <&str, GnExpr>, alt!(
@@ -475,15 +492,22 @@ fn test_assignment() {
     let borkers = GnExpr::new_expression_list_from_vec(borker_names);
     let assignment = GnExpr::new_assignment(identifier, "=", borkers);
     assert_eq!(
-        gn_assignment(&r#"bork_list = [
-        "Fez",
-        "Raz",
-        "Skitch",
-        ]"#),
+        gn_assignment(&r#"bork_list = ["Fez","Raz","Skitch",]"#),
         IResult::Done("", assignment)
     );
-    
-    //assert_eq!(gn_assignment(INPUT_FIDL_ASSIGNMENT), IResult::Error(Tag));
+
+    let identifier = GnExpr::new_identifier_from_string("bork_list".to_owned());
+    let borker_names =
+        vec!["Fez", "Raz", "Skitch"].iter().map(|s| GnExpr::new_string_from_str(*s)).collect();
+    let borkers = GnExpr::new_expression_list_from_vec(borker_names);
+    let assignment = GnExpr::new_assignment(identifier, "=", borkers);
+    assert_eq!(
+        gn_assignment(&r#"bork_list = ["Fez","Raz","Skitch"]"#),
+        IResult::Done("", assignment)
+    );
+
+    let assignment = gn_assignment(INPUT_FIDL_ASSIGNMENT);
+    assert!(assignment.is_done());
 }
 
 #[test]
@@ -513,14 +537,13 @@ fn test_block() {
     let expected_list = GnExpr::new_statement_list(vec![assignment1, assignment2]);
     assert_eq!(list, IResult::Done("", expected_list));
 
-    // let list = gn_block(INPUT_FIDL_BLOCK);
-    // let expected_list = GnExpr::new_statement_list(vec![]);
-    // assert_eq!(list, IResult::Done("", expected_list));
+    let list = gn_block(INPUT_FIDL_BLOCK);
+    assert!(list.is_done());
 }
 
 #[test]
 fn test_src() {
-    // let list = gn_statement_list(INPUT_FIDL);
-    // assert_eq!(list, IResult::Error(Tag));
+    let list = gn_statement_list(INPUT_FIDL);
+    assert!(list.is_done());
+    println!("list = {:?}", list);
 }
-
