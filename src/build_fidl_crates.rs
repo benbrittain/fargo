@@ -1,4 +1,36 @@
 #[cfg(test)]
+static INPUT_FIDL_FULL: &'static str = r#"
+# Copyright 2016 The Fuchsia Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//garnet/public/lib/fidl/fidl.gni")
+
+fidl("services") {
+  sources = [
+    "application_controller.fidl",
+    "application_environment.fidl",
+    "application_environment_controller.fidl",
+    "application_environment_host.fidl",
+    "application_launcher.fidl",
+    "application_loader.fidl",
+    "application_runner.fidl",
+    "flat_namespace.fidl",
+  ]
+
+  public_deps = [
+    ":service_provider",
+  ]
+}
+
+fidl("service_provider") {
+  sources = [
+    "service_provider.fidl",
+  ]
+}
+"#;
+
+#[cfg(test)]
 static INPUT_FIDL: &'static str = r#"fidl("input") {
   sources = [
     "ime_service.fidl",
@@ -58,7 +90,7 @@ static INPUT_FIDL_ASSIGNMENT: &'static str = r#"
   ]
 "#;
 
-use nom::{IResult, Needed, alpha, alphanumeric, anychar, digit};
+use nom::{IResult, Needed, alpha, alphanumeric, anychar, digit, newline};
 use nom::ErrorKind::{Alt, Digit, Tag};
 use nom::IError::Incomplete;
 use std::str;
@@ -85,6 +117,7 @@ struct GnCall {
 
 #[derive(Debug, PartialEq)]
 enum GnExpr {
+    Comment(String),
     Identifier(String),
     Expression(String),
     Integer(i64),
@@ -101,6 +134,10 @@ enum GnExpr {
 impl GnExpr {
     fn new_identifier_from_string(identifier: String) -> GnExpr {
         GnExpr::Identifier(identifier)
+    }
+
+    fn new_comment_from_string(identifier: String) -> GnExpr {
+        GnExpr::Comment(identifier)
     }
 
     fn new_expression_from_string(expression: String) -> GnExpr {
@@ -207,6 +244,12 @@ named!(gn_identifier <&str, String>, do_parse!(
     (append_parts(init, remain)))
 );
 
+named!(gn_comment <&str, String>, do_parse!(
+    init: ws!(tag!("#")) >>
+    remain: take_until_s!(&"\n") >>
+    (String::from(remain)))
+);
+
 named!(gn_assign_op <&str, &str>, alt!(
     tag!("+=") |
     tag!("-=") |
@@ -300,7 +343,7 @@ named!(gn_expr_list <&str,GnExpr>,
 );
 
 named!(gn_call <&str,GnCall>, do_parse!(
-    function_name: gn_identifier >>
+    function_name: ws!(gn_identifier) >>
     params: delimited!(
         ws!(tag!("(")),
         gn_expr_list,
@@ -329,6 +372,7 @@ named!(gn_assignment <&str, GnExpr>, do_parse!(
 
 named!(gn_statement <&str, GnExpr>, alt!(
     gn_assignment |
+    map!(gn_comment, GnExpr::new_comment_from_string) |
     map!(gn_call, GnExpr::new_call)
 ));
 
@@ -403,7 +447,7 @@ fn test_gn_call() {
     let expressions = vec![input_string];
     let expression_list = GnExpr::new_expression_list_from_vec(expressions);
     assert_eq!(
-        gn_call(&r#"fidl ( "input" )"#),
+        gn_call(&r#"  fidl ( "input" )"#),
         IResult::Done(
             "",
             GnCall {
@@ -429,6 +473,15 @@ fn test_gn_call() {
         block: Some(Box::new(block_expression_list)),
     };
     assert_eq!(call_with_block, IResult::Done("", call));
+
+    let two_calls = gn_statement_list(r#"with_block("this"){a=1} call2("that")"#);
+    assert!(two_calls.is_done());
+    match two_calls.unwrap().1 {
+        GnExpr::ExpressionList(a) => {
+            assert_eq!(a.len(), 2, "a = {:?}", a);
+        }
+        _ => panic!("gn_statement_list returned wrong item"),
+    }
 }
 
 #[test]
@@ -437,6 +490,14 @@ fn test_gn_string() {
     assert_eq!(
         gn_string(&r#""now is the time""#),
         IResult::Done("", String::from("now is the time"))
+    );
+}
+
+#[test]
+fn test_comment() {
+    assert_eq!(
+        gn_comment(&"# nothing to see here\n"),
+        IResult::Done("\n", String::from("nothing to see here"))
     );
 }
 
@@ -545,5 +606,31 @@ fn test_block() {
 fn test_src() {
     let list = gn_statement_list(INPUT_FIDL);
     assert!(list.is_done());
-    println!("list = {:?}", list);
+    match list.unwrap().1 {
+        GnExpr::ExpressionList(a) => {
+            assert_eq!(a.len(), 1);
+            match &a[0] {
+                &GnExpr::Call(ref call) => {
+                    assert_eq!(call.name, "fidl");
+                }
+                _ => panic!("test_src returned wrong statement"),
+            }
+        }
+        _ => panic!("test_src returned wrong item"),
+    }
+
+    let list = gn_statement_list(INPUT_FIDL_FULL);
+    assert!(list.is_done(), format!("list = {:?}", list));
+    match list.unwrap().1 {
+        GnExpr::ExpressionList(a) => {
+            assert_eq!(a.len(), 6, "a = {:?}", a);
+            match &a[3] {
+                &GnExpr::Call(ref call) => {
+                    assert_eq!(call.name, "import");
+                }
+                _ => panic!("test_src returned wrong statement"),
+            }
+        }
+        _ => panic!("test_src returned wrong item"),
+    }
 }
