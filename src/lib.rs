@@ -15,9 +15,6 @@ extern crate clap;
 extern crate error_chain;
 #[macro_use]
 extern crate nom;
-#[macro_use]
-extern crate serde_derive;
-extern crate toml;
 extern crate uname;
 
 mod build_fidl_crates;
@@ -25,7 +22,6 @@ mod device;
 mod cross;
 mod sdk;
 mod utils;
-mod update_crates;
 
 mod errors {
     // Create the Error, ErrorKind, ResultExt, and Result types
@@ -53,7 +49,6 @@ pub use sdk::TargetOptions;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-use update_crates::update_crates;
 use utils::strip_binary;
 
 fn run_program_on_target(
@@ -422,18 +417,6 @@ pub fn run() -> Result<()> {
                 .setting(AppSettings::Hidden),
         )
         .subcommand(
-            SubCommand::with_name("update-crates")
-                .about("Update the FIDL generated crates")
-                .arg(
-                    Arg::with_name("target")
-                        .long("target")
-                        .value_name("target")
-                        .required(true)
-                        .help("Target directory for updated crates"),
-                )
-                .setting(AppSettings::Hidden),
-        )
-        .subcommand(
             SubCommand::with_name("pkg-config")
                 .about("Run pkg-config for the cross compilation environment")
                 .arg(Arg::with_name("pkgconfig_param").index(1).multiple(true)),
@@ -572,11 +555,6 @@ pub fn run() -> Result<()> {
             run_on_target_matches.is_present("launch"),
             args,
         );
-    }
-
-    if let Some(update_matches) = matches.subcommand_matches("update-crates") {
-        let update_target = update_matches.value_of("target").unwrap();
-        return update_crates(update_target).chain_err(|| "update-crates failed");
     }
 
     if let Some(pkg_matches) = matches.subcommand_matches("pkg-config") {
