@@ -66,12 +66,12 @@ pub fn strip_tool_path() -> Result<PathBuf> {
 }
 
 pub fn sysroot_path(options: &TargetOptions) -> Result<PathBuf> {
-    let magenta_name = if options.target_cpu == "x86-64" {
-        "build-magenta-pc-x86-64"
+    let zircon_name = if options.target_cpu == "x86-64" {
+        "build-zircon-pc-x86-64"
     } else {
-        "build-magenta-qemu-arm64"
+        "build-zircon-qemu-arm64"
     };
-    Ok(fuchsia_root()?.join("out").join("build-magenta").join(magenta_name).join("sysroot"))
+    Ok(fuchsia_root()?.join("out").join("build-zircon").join(zircon_name).join("sysroot"))
 }
 
 pub fn toolchain_path() -> Result<PathBuf> {

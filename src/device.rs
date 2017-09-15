@@ -20,7 +20,7 @@ error_chain!{
 
 pub fn netaddr(verbose: bool, target_options: &TargetOptions) -> Result<String> {
     let fuchsia_root = fuchsia_root()?;
-    let netaddr_binary = fuchsia_root.join("out/build-magenta/tools/netaddr");
+    let netaddr_binary = fuchsia_root.join("out/build-zircon/tools/netaddr");
     let mut args = vec!["--fuchsia"];
     if let Some(device_name) = target_options.device_name {
         args.push(device_name);
@@ -39,7 +39,7 @@ pub fn netaddr(verbose: bool, target_options: &TargetOptions) -> Result<String> 
 
 pub fn netls(verbose: bool) -> Result<()> {
     let fuchsia_root = fuchsia_root()?;
-    let netls_binary = fuchsia_root.join("out/build-magenta/tools/netls");
+    let netls_binary = fuchsia_root.join("out/build-zircon/tools/netls");
     let mut netls_command = Command::new(netls_binary);
     netls_command.arg("--nowait").arg("--timeout=500");
     if verbose {
@@ -168,7 +168,7 @@ pub fn setup_network_mac(user: &str) -> Result<()> {
 #[cfg_attr(rustfmt, rustfmt_skip)]
 static TUNCTL_NOT_FOUND_ERROR: &'static str =
 "tunctl command not found. Please install uml-utilities.
-For help see https://fuchsia.googlesource.com/magenta/+/
+For help see https://fuchsia.googlesource.com/zircon/+/
 master/docs/qemu.md#Enabling-Networking-under-QEMU-x86_64-only";
 
 pub fn setup_network_linux(user: &str) -> Result<()> {
@@ -222,9 +222,9 @@ pub fn start_emulator(
     target_options: &TargetOptions,
 ) -> Result<()> {
     let fuchsia_root = fuchsia_root()?;
-    let run_magenta_script = fuchsia_root.join("scripts/run-magenta-x86-64");
-    if !run_magenta_script.exists() {
-        bail!("run magenta script not found at {:?}", run_magenta_script);
+    let run_zircon_script = fuchsia_root.join("scripts/run-zircon-x86-64");
+    if !run_zircon_script.exists() {
+        bail!("run zircon script not found at {:?}", run_zircon_script);
     }
     let user_bootfs = target_out_dir(target_options)?.join("user.bootfs");
     if !user_bootfs.exists() {
@@ -236,12 +236,12 @@ pub fn start_emulator(
         args.push("-g");
     }
 
-    let child = Command::new(run_magenta_script)
+    let child = Command::new(run_zircon_script)
         .args(&args)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .chain_err(|| "unable to run magenta")?;
+        .chain_err(|| "unable to run zircon")?;
 
     println!("emulator started with process ID {}", child.id());
 
