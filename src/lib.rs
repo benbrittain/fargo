@@ -31,6 +31,7 @@ mod errors {
             Cross(::cross::Error, ::cross::ErrorKind);
             SDK(::sdk::Error, ::sdk::ErrorKind);
             Utils(::utils::Error, ::utils::ErrorKind);
+            BuildFidlCrates(::build_fidl_crates::Error, ::build_fidl_crates::ErrorKind);
         }
 
         foreign_links {
@@ -38,8 +39,6 @@ mod errors {
         }
     }
 }
-
-use errors::*;
 
 use clap::{App, AppSettings, Arg, SubCommand};
 use cross::{pkg_config_path, run_configure, run_pkg_config};
@@ -50,6 +49,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use utils::strip_binary;
+
+use errors::*;
 
 fn run_program_on_target(
     filename: &str,
@@ -431,6 +432,23 @@ pub fn run() -> Result<()> {
                     "Don't pass --host to configure",
                 )),
         )
+        .subcommand(SubCommand::with_name("fidl").about("Interface to the fidl tool")
+        .arg(
+            Arg::with_name("src")
+                .long("src")
+                .value_name("src")
+                .required(true)
+                .help("Source gn file for the crate"),
+        )
+        .arg(
+            Arg::with_name("dst")
+                .long("dst")
+                .value_name("dst")
+                .help("Destination directory for the crate")
+                .required(true),
+        )
+
+    )
         .get_matches();
 
     let verbose = matches.is_present("verbose");
@@ -517,6 +535,12 @@ pub fn run() -> Result<()> {
 
     if matches.subcommand_matches("stop").is_some() {
         return stop_emulator().chain_err(|| "stopping emulator failed");
+    }
+
+    if let Some(fidl_matches) = matches.subcommand_matches("fidl") {
+        let src = PathBuf::from(fidl_matches.value_of("src").unwrap());
+        let dst = PathBuf::from(fidl_matches.value_of("dst").unwrap());
+        return build_fidl_crates::build(&src, &dst).chain_err(|| "build fidl crate failed");
     }
 
     if let Some(restart_matches) = matches.subcommand_matches("restart") {

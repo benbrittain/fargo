@@ -93,8 +93,18 @@ static INPUT_FIDL_ASSIGNMENT: &'static str = r#"
 use nom::{IResult, Needed, alpha, alphanumeric, anychar, digit, newline};
 use nom::ErrorKind::{Alt, Digit, Tag};
 use nom::IError::Incomplete;
+use std::fs::File;
+use std::io::prelude::*;
+use std::ops::Deref;
+use std::path::PathBuf;
 use std::str;
 use std::str::FromStr;
+
+error_chain!{
+    foreign_links {
+        Io(::std::io::Error);
+    }
+}
 
 #[derive(Debug, PartialEq)]
 struct GnScopeAccess {
@@ -633,4 +643,74 @@ fn test_src() {
         }
         _ => panic!("test_src returned wrong item"),
     }
+}
+
+struct FidlCrate {
+    name: String,
+    source: Vec<String>,
+}
+
+fn build_rust_library(call: &GnCall, dst: &PathBuf) -> Result<()> {
+    let params = match *call.params {
+        GnExpr::ExpressionList(ref a) => a,
+        _ => bail!("Expected params to be an expression list but got {:?}", call.params),
+    };
+
+    if params.is_empty() {
+        bail!("found fidl call that had no parameters {:?}", call);
+    }
+
+    let first_param = match params[0] {
+        GnExpr::String(ref s) => s,
+        _ => bail!("Expected parameter to be a string but found {:?}", params[0]),
+    };
+
+    println!("name = {}", first_param);
+
+    let block_statements = if let Some(ref block) = call.block {
+        match **block {
+            GnExpr::ExpressionList(ref a) => a,
+            _ => bail!("Expected block to be an expression list but got {:?}", call.params),
+        }
+    } else {
+        bail!("found fidl call that had block {:?}", call);
+    };
+
+    println!("block_statements = {:?}", block_statements);
+
+    Ok(())
+}
+
+pub fn build(src: &PathBuf, dst: &PathBuf) -> Result<()> {
+    if !src.exists() {
+        bail!("gn file not found at {:?}", src);
+    }
+
+    let mut f = File::open(src)?;
+    let mut contents = String::new();
+    f.read_to_string(&mut contents)?;
+
+    let list = gn_statement_list(&contents[..]);
+
+    if !list.is_done() {
+        bail!("gn parsing failed {:?}", list);
+    }
+
+    match list.unwrap().1 {
+        GnExpr::ExpressionList(a) => {
+            for statement in a {
+                match statement {
+                    GnExpr::Call(c) => {
+                        if c.name == "fidl" {
+                            build_rust_library(&c, dst)?;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        _ => {}
+    }
+
+    Ok(())
 }
