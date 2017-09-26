@@ -76,8 +76,8 @@ pub fn sysroot_path(options: &TargetOptions) -> Result<PathBuf> {
 
 pub fn toolchain_path() -> Result<PathBuf> {
     let platform_name =
-        if is_mac() { "clang+llvm-x86_64-darwin" } else { "clang+llvm-x86_64-linux" };
-    Ok(fuchsia_root()?.join("buildtools").join("toolchain").join(platform_name))
+        if is_mac() { "mac-x64" } else { "linux-x64" };
+    Ok(fuchsia_root()?.join("buildtools").join(platform_name).join("clang"))
 }
 
 pub fn clang_linker_path() -> Result<PathBuf> {
