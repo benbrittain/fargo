@@ -4,32 +4,35 @@
         Fargo is a prototype Fuchsia-specific wrapper around Cargo
 
         USAGE:
-            fargo [FLAGS] [SUBCOMMAND]
+            fargo [FLAGS] [OPTIONS] [SUBCOMMAND]
 
         FLAGS:
                 --debug-os    Use debug user.bootfs and ssh keys
             -h, --help        Prints help information
             -V, --version     Prints version information
-            -v                Print verbose output while performing commands
+            -v, --verbose     Print verbose output while performing commands
+
+        OPTIONS:
+            -N, --device-name <device-name>
+                    Name of device to target, needed if there are multiple devices visible
+                    on the network
 
         SUBCOMMANDS:
-            autotest       Auto build and test in Fuchsia device or emulator
-            build          Build binary targeting Fuchsia device or emulator
-            build-tests    Build tests for Fuchsia device or emulator
-            cargo          Run a cargo command for Fuchsia. Use -- to indicate
-                           that all following arguments should be passed to
-                           cargo.
-            configure      Run a configure script for the cross compilation
-                           environment
-            help           Prints this message or the help of the given
-                           subcommand(s)
-            pkg-config     Run pkg-config for the cross compilation environment
-            restart        Stop all Fuchsia emulators and start a new one
-            run            Run binary on Fuchsia device or emulator
-            ssh            Open a shell on Fuchsia device or emulator
-            start          Start a Fuchsia emulator
-            stop           Stop all Fuchsia emulators
-            test           Run unit tests on Fuchsia device or emulator
+            autotest        Auto build and test in Fuchsia device or emulator
+            build           Build binary targeting Fuchsia device or emulator
+            build-tests     Build tests for Fuchsia device or emulator
+            cargo           Run a cargo command for Fuchsia. Use -- to indicate that all
+                            following arguments should be passed to cargo.
+            configure       Run a configure script for the cross compilation environment
+            help            Prints this message or the help of the given subcommand(s)
+            list-devices    List visible Fuchsia devices
+            pkg-config      Run pkg-config for the cross compilation environment
+            restart         Stop all Fuchsia emulators and start a new one
+            run             Run binary on Fuchsia device or emulator
+            ssh             Open a shell on Fuchsia device or emulator
+            start           Start a Fuchsia emulator
+            stop            Stop all Fuchsia emulators
+            test            Run unit tests on Fuchsia device or emulator
 
 The `fargo-test` directory contains something one can use to test-drive.
 
@@ -49,21 +52,22 @@ something other than the default modules.
 If you are planning to use Qemu to run your Fuchsia Rust code, a good choice
 for modules is below, in env.sh form or underlying script as one prefers.
 
-    fset x86-64 --release --modules boot_headless,magenta_rust
+    fset x86-64 --release --modules packages/gn/boot_headless,garnet/packages/zircon_rust
 
 or
 
-    packages/gn/gen.py -m boot_headless,magenta_rust --release
+    packages/gn/gen.py -m packages/gn/boot_headless,garnet/packages/zircon_rust --release
 
-What `boot_headless` does in this instance is prevent the user shell from being
+What `packages/gn/boot_headless` does in this instance is prevent the user shell from being
 launched after boot. Since the user shell requires
 [Mozart](https://fuchsia.googlesource.com/mozart), and Mozart has a hard
 dependency on the [Vulkan graphics and compute
 API](https://www.khronos.org/vulkan), *and* Qemu cannot support Vulkan,
-`boot_headless` is pretty much a requirement for Qemu.
+`packages/gn/boot_headless` is pretty much a requirement for Qemu.
 
 If you want a quicker compile, limiting the modules to
-`magentix,magenta_rust,runtime_config` will compile a lot fewer packages
+`packages/gn/garnet,garnet/packages/runtime_config,garnet/packages/zircon_rust` will
+compile a lot fewer packages
 but still be usable with Fargo.
 
 Once this build is complete, clone and build fargo.
@@ -75,6 +79,16 @@ Once this build is complete, clone and build fargo.
 Fargo uses ssh to communicate between your host computer and either Qemu or a
 real device to copy build results and execute them. For Qemu there is a bit of
 [tricky set up](https://fuchsia.googlesource.com/magenta/+/master/docs/qemu.md#Enabling-Networking-under-QEMU-x86_64-only) to do.
+
+Finally, you need to be using nightly (as opposed to stable) and have the `x86_64-unknown-fuchsia`
+target installed. If you installed rust with [rustup](https://www.rustup.rs) you can
+install the target with:
+
+    rustup default nightly
+    rustup target add x86_64-unknown-fuchsia
+
+If you installed Rust some other way, you'll have to do some research about how to get the nightly
+build and `x86_64-unknown-fuchsia` support into your installation.
 
 ### Testing if Fargo is working
 
