@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-extern crate magenta;
+extern crate fuchsia_zircon as zircon;
 
 fn main() {
     println!("Hello, world!");
@@ -17,7 +17,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
 
-    use magenta::{Channel, ChannelOpts};
+    use zircon::{Channel, ChannelOpts};
 
     #[test]
     fn noop_test() {}
