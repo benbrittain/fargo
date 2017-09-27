@@ -5,8 +5,6 @@ authors = ["Rob Tsuk <robtsuk@google.com>"]
 
 [dependencies]
 fuchsia-zircon = "0.2.0"
-mxruntime = "0.1.0"
-apps_mozart_services_buffers = { git = "https://fuchsia.googlesource.com/fuchsia-crates" }
 
 [[test]]
 name = "bork"
