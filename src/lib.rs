@@ -58,7 +58,7 @@ fn run_program_on_target(
         println!("netaddr {}", netaddr);
     }
     let source_path = PathBuf::from(&filename);
-    let stripped_source_path = strip_binary(&source_path)?;
+    let stripped_source_path = strip_binary(&source_path, target_options)?;
     let destination_path =
         format!("/tmp/{}", stripped_source_path.file_name().unwrap().to_string_lossy());
     println!("copying {} to {}", source_path.to_string_lossy(), destination_path);
@@ -259,7 +259,10 @@ pub fn run_cargo(
                 sysroot_path(target_options)?.to_str().unwrap()
             ),
         )
-        .env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER", clang_linker_path()?.to_str().unwrap())
+        .env(
+            "CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
+            clang_linker_path(target_options)?.to_str().unwrap(),
+        )
         .env("PKG_CONFIG_ALL_STATIC", "1")
         .env("PKG_CONFIG_ALLOW_CROSS", "1")
         .env("PKG_CONFIG_PATH", "")
@@ -499,7 +502,7 @@ pub fn run() -> Result<()> {
     }
 
     if matches.subcommand_matches("list-devices").is_some() {
-        return netls(verbose).chain_err(|| "netls failed");
+        return netls(verbose, &target_options).chain_err(|| "netls failed");
     }
 
     if let Some(start_matches) = matches.subcommand_matches("start") {

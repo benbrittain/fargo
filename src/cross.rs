@@ -74,7 +74,7 @@ pub fn run_configure(
         println!("sysroot_path: {:?}", sysroot_path);
     }
 
-    let toolchain_path = toolchain_path()?;
+    let toolchain_path = toolchain_path(target_options)?;
 
     if verbose {
         println!("toolchain_path: {:?}", toolchain_path);

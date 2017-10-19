@@ -19,7 +19,7 @@ error_chain!{
 }
 
 pub fn netaddr(verbose: bool, target_options: &TargetOptions) -> Result<String> {
-    let fuchsia_root = fuchsia_root()?;
+    let fuchsia_root = fuchsia_root(target_options)?;
     let netaddr_binary = fuchsia_root.join("out/build-zircon/tools/netaddr");
     let mut args = vec!["--fuchsia"];
     if let Some(device_name) = target_options.device_name {
@@ -37,8 +37,8 @@ pub fn netaddr(verbose: bool, target_options: &TargetOptions) -> Result<String> 
     Ok(result)
 }
 
-pub fn netls(verbose: bool) -> Result<()> {
-    let fuchsia_root = fuchsia_root()?;
+pub fn netls(verbose: bool, target_options: &TargetOptions) -> Result<()> {
+    let fuchsia_root = fuchsia_root(target_options)?;
     let netls_binary = fuchsia_root.join("out/build-zircon/tools/netls");
     let mut netls_command = Command::new(netls_binary);
     netls_command.arg("--nowait").arg("--timeout=500");
@@ -221,7 +221,7 @@ pub fn start_emulator(
     with_networking: bool,
     target_options: &TargetOptions,
 ) -> Result<()> {
-    let fuchsia_root = fuchsia_root()?;
+    let fuchsia_root = fuchsia_root(target_options)?;
     let run_zircon_script = fuchsia_root.join("scripts/run-zircon-x86-64");
     if !run_zircon_script.exists() {
         bail!("run zircon script not found at {:?}", run_zircon_script);
