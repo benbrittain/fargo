@@ -217,12 +217,15 @@ pub fn setup_network() -> Result<()> {
 }
 
 pub fn start_emulator(
+    verbose: bool,
     with_graphics: bool,
     with_networking: bool,
     target_options: &TargetOptions,
 ) -> Result<()> {
     let fuchsia_root = fuchsia_root(target_options)?;
-    let run_zircon_script = fuchsia_root.join("scripts/run-zircon-x86-64");
+    let run_zircon_script =
+        fuchsia_root.join(format!("scripts/run-zircon-{}", target_options.run_script_target()));
+
     if !run_zircon_script.exists() {
         bail!("run zircon script not found at {:?}", run_zircon_script);
     }
@@ -236,19 +239,24 @@ pub fn start_emulator(
         args.push("-g");
     }
 
-    let child = Command::new(run_zircon_script)
-        .args(&args)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .chain_err(|| "unable to run zircon")?;
+    let mut child = Command::new(run_zircon_script);
+
+    child.args(&args).stdout(Stdio::null()).stderr(Stdio::null());
+
+    if verbose {
+        println!("start emulator {:?}", child);
+    }
+
+    let child = child.spawn().chain_err(|| "unable to run zircon")?;
 
     println!("emulator started with process ID {}", child.id());
 
     if with_networking { setup_network() } else { Ok(()) }
 }
 
-pub fn stop_emulator() -> Result<()> {
-    Command::new("killall").arg("qemu-system-x86_64").status()?;
+pub fn stop_emulator(target_options: &TargetOptions) -> Result<()> {
+    let qemu_name =
+        if target_options.is_x86() { "qemu-system-x86_64" } else { "qemu-system-aarch64" };
+    Command::new("killall").arg(qemu_name).status()?;
     Ok(())
 }

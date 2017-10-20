@@ -16,7 +16,6 @@ error_chain!{}
 pub struct TargetOptions<'a> {
     pub release_os: bool,
     pub target_cpu: &'a str,
-    pub target_cpu_linker: &'a str,
     pub device_name: Option<&'a str>,
 }
 
@@ -31,13 +30,28 @@ impl<'a> TargetOptions<'a> {
     /// let target_options = TargetOptions::new(true, Some("ivy-donut-grew-stoop"));
     /// ```
 
-    pub fn new(release_os: bool, device_name: Option<&'a str>) -> TargetOptions {
+    pub fn new(
+        release_os: bool,
+        device_name: Option<&'a str>,
+        target_cpu: &'a str,
+    ) -> TargetOptions<'a> {
         TargetOptions {
             release_os: release_os,
-            target_cpu: "x86-64",
-            target_cpu_linker: "x86_64",
+            target_cpu: target_cpu,
             device_name: device_name,
         }
+    }
+
+    pub fn target_triple(&self) -> &str {
+        if self.target_cpu == "x86-64" { "x86_64" } else { "aarch64" }
+    }
+
+    pub fn run_script_target(&self) -> &str {
+        if self.target_cpu == "x86-64" { "x86-64" } else { "arm64" }
+    }
+
+    pub fn is_x86(&self) -> bool {
+        self.target_cpu == "x86-64"
     }
 }
 

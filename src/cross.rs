@@ -83,8 +83,9 @@ pub fn run_configure(
     let toolchain_bin_path = toolchain_path.join("bin");
 
     let common_c_flags = format!(
-        "--sysroot={} --target=x86_64-fuchsia -fPIC -I{}",
+        "--sysroot={} --target={}-fuchsia -fPIC -I{}",
         sysroot_path.to_str().unwrap(),
+        target_options.target_triple(),
         cross_root.join("include").to_str().unwrap()
     );
 
@@ -101,7 +102,9 @@ pub fn run_configure(
     let mut configure_args = vec![];
 
     if use_host {
-        configure_args.push("--host=x86_64-fuchsia-elf");
+        let host =
+            if target_options.is_x86() { "x86_64-fuchsia-elf" } else { "aarch64-fuchsia-elf" };
+        configure_args.push(host);
     }
 
     configure_args.push(&prefix);

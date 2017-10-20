@@ -207,7 +207,8 @@ pub fn run_cargo(
     target_options: &TargetOptions,
     runner: Option<PathBuf>,
 ) -> Result<()> {
-    let mut target_args = vec!["--target", "x86_64-unknown-fuchsia"];
+    let target = format!("{}-unknown-fuchsia", target_options.target_cpu);
+    let mut target_args = vec!["--target", &target[..]];
 
     if release {
         target_args.push("--release");
@@ -250,19 +251,23 @@ pub fn run_cargo(
     let pkg_path = pkg_config_path(target_options)?;
     let mut cmd = Command::new("cargo");
 
-    cmd.env("CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_RUNNER", fargo_command)
+    let cpu = if target_options.is_x86() { "X86_64" } else { "AARCH64" };
+    let target = format!("{}_UNKNOWN_FUCHSIA", cpu);
+    let runner = format!("CARGO_TARGET_{}_RUNNER", target);
+    let rust_flags = format!("CARGO_TARGET_{}_RUSTFLAGS", target);
+    let linker = format!("CARGO_TARGET_{}_LINKER", target);
+
+    cmd.env(runner, fargo_command)
         .env(
-            "CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_RUSTFLAGS",
+            rust_flags,
             format!(
-                "-C link-arg=--target=x86_64-unknown-fuchsia \
+                "-C link-arg=--target={}-unknown-fuchsia \
                 -C link-arg=--sysroot={}",
+                target_options.target_cpu,
                 sysroot_path(target_options)?.to_str().unwrap()
             ),
         )
-        .env(
-            "CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
-            clang_linker_path(target_options)?.to_str().unwrap(),
-        )
+        .env(linker, clang_linker_path(target_options)?.to_str().unwrap())
         .env("PKG_CONFIG_ALL_STATIC", "1")
         .env("PKG_CONFIG_ALLOW_CROSS", "1")
         .env("PKG_CONFIG_PATH", "")
@@ -297,6 +302,12 @@ pub fn run() -> Result<()> {
         .arg(Arg::with_name("debug-os").long("debug-os").help(
             "Use debug user.bootfs and ssh keys",
         ))
+        .arg(Arg::with_name("target")
+            .long("target").short("t").possible_values(&["x86-64", "aarch64"])
+            .value_name("target")
+            .default_value("x86-64")
+            .help("Target architecture to use.")
+        )
         .arg(Arg::with_name("device-name").long("device-name").short("N")
         .value_name("device-name").help(
             "Name of device to target, needed if there are multiple devices visible on the network",
@@ -432,8 +443,11 @@ pub fn run() -> Result<()> {
         .get_matches();
 
     let verbose = matches.is_present("verbose");
-    let target_options =
-        TargetOptions::new(!matches.is_present("debug-os"), matches.value_of("device-name"));
+    let target_options = TargetOptions::new(
+        !matches.is_present("debug-os"),
+        matches.value_of("device-name"),
+        matches.value_of("target").unwrap(),
+    );
 
     if verbose {
         println!("target_options = {:?}", target_options);
@@ -507,6 +521,7 @@ pub fn run() -> Result<()> {
 
     if let Some(start_matches) = matches.subcommand_matches("start") {
         return start_emulator(
+            verbose,
             start_matches.is_present("graphics"),
             !start_matches.is_present("no_net"),
             &target_options,
@@ -514,13 +529,14 @@ pub fn run() -> Result<()> {
     }
 
     if matches.subcommand_matches("stop").is_some() {
-        return stop_emulator().chain_err(|| "stopping emulator failed");
+        return stop_emulator(&target_options).chain_err(|| "stopping emulator failed");
     }
 
     if let Some(restart_matches) = matches.subcommand_matches("restart") {
-        stop_emulator().chain_err(|| "in restart, stopping emulator failed")?;
+        stop_emulator(&target_options).chain_err(|| "in restart, stopping emulator failed")?;
 
         return start_emulator(
+            verbose,
             restart_matches.is_present("graphics"),
             !restart_matches.is_present("no_net"),
             &target_options,
