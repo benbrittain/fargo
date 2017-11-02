@@ -52,6 +52,7 @@ fn run_program_on_target(
     target_options: &TargetOptions,
     launch: bool,
     params: &[&str],
+    test_args: Option<&str>,
 ) -> Result<()> {
     let netaddr = netaddr(verbose, target_options)?;
     if verbose {
@@ -68,6 +69,11 @@ fn run_program_on_target(
     for param in params {
         command_string.push(' ');
         command_string.push_str(param);
+    }
+
+    if let Some(test_args_str) = test_args {
+        command_string.push_str(" -- ");
+        command_string.push_str(test_args_str);
     }
 
     if verbose {
@@ -108,7 +114,7 @@ fn autotest(verbose: bool, release: bool, target_options: &TargetOptions) -> Res
                 // TODO(raggi): provide a fuller ignore flag/pattern match solution here.
                 if !path.starts_with(&tgt) && !path.starts_with(&git) {
                     println!("autotest: running tests because {:?}", path);
-                    run_tests(verbose, release, false, target_options, "", &[]).ok();
+                    run_tests(verbose, release, false, target_options, "", &[], None).ok();
                 }
             }
             _ => {}
@@ -122,7 +128,7 @@ fn build_tests(
     target_options: &TargetOptions,
     test_target: &str,
 ) -> Result<bool> {
-    run_tests(verbose, release, true, target_options, test_target, &[])?;
+    run_tests(verbose, release, true, target_options, test_target, &[], None)?;
     Ok(true)
 }
 
@@ -133,6 +139,7 @@ fn run_tests(
     target_options: &TargetOptions,
     test_target: &str,
     params: &[&str],
+    target_params: Option<&str>,
 ) -> Result<()> {
 
     let mut args = vec!["test"];
@@ -150,7 +157,21 @@ fn run_tests(
         args.push(param);
     }
 
-    run_cargo(verbose, release, false, &args, target_options, None)?;
+    if target_params.is_some() {
+        let formatted_target_params = format!("--args={}", target_params.unwrap());
+        run_cargo(
+            verbose,
+            release,
+            false,
+            &args,
+            target_options,
+            None,
+            Some(&formatted_target_params),
+        )?;
+    } else {
+        run_cargo(verbose, release, false, &args, target_options, None, None)?;
+    }
+
     Ok(())
 }
 
@@ -165,7 +186,7 @@ fn build_binary(
         args.push(param);
     }
 
-    run_cargo(verbose, release, false, &args, target_options, None)
+    run_cargo(verbose, release, false, &args, target_options, None, None)
 }
 
 fn run_binary(
@@ -181,7 +202,7 @@ fn run_binary(
         args.push(param);
     }
 
-    run_cargo(verbose, release, launch, &args, target_options, None)?;
+    run_cargo(verbose, release, launch, &args, target_options, None, None)?;
     Ok(())
 }
 
@@ -206,6 +227,7 @@ pub fn run_cargo(
     args: &[&str],
     target_options: &TargetOptions,
     runner: Option<PathBuf>,
+    additional_target_args: Option<&str>,
 ) -> Result<()> {
     let mut target_args = vec!["--target", "x86_64-unknown-fuchsia"];
 
@@ -239,6 +261,10 @@ pub fn run_cargo(
 
     if launch {
         runner_args.push("--launch");
+    }
+
+    if let Some(args_for_target) = additional_target_args {
+        runner_args.push(&args_for_target);
     }
 
     let fargo_command = runner_args.join(" ");
@@ -333,6 +359,12 @@ pub fn run() -> Result<()> {
                         .value_name("test")
                         .help("Test only the specified test target"),
                 )
+                .arg(
+                    Arg::with_name("test_args")
+                        .long("args")
+                        .value_name("args")
+                        .help("arguments to pass to the test runner"),
+                )
                 .arg(Arg::with_name("test_params").index(1).multiple(true)),
         )
         .subcommand(
@@ -406,6 +438,12 @@ pub fn run() -> Result<()> {
         .subcommand(
             SubCommand::with_name("run-on-target")
                 .about("Act as a test runner for cargo")
+                .arg(
+                    Arg::with_name("test_args")
+                        .long("args")
+                        .value_name("args")
+                        .help("arguments to pass to the test runner"),
+                )
                 .arg(Arg::with_name("launch").long("launch").help(
                     "Use launch to run binary.",
                 ))
@@ -447,6 +485,7 @@ pub fn run() -> Result<()> {
         let test_params =
             test_matches.values_of("test_params").map(|x| x.collect()).unwrap_or_else(|| vec![]);
         let test_target = test_matches.value_of("test").unwrap_or("");
+        let test_args = test_matches.value_of("test_args");
         return run_tests(
             verbose,
             test_matches.is_present("release"),
@@ -454,6 +493,7 @@ pub fn run() -> Result<()> {
             &target_options,
             test_target,
             &test_params,
+            test_args,
         ).chain_err(|| "running tests failed");
     }
 
@@ -534,7 +574,7 @@ pub fn run() -> Result<()> {
     if let Some(cargo_matches) = matches.subcommand_matches("cargo") {
         let cargo_params =
             cargo_matches.values_of("cargo_params").map(|x| x.collect()).unwrap_or_else(|| vec![]);
-        run_cargo(verbose, false, false, &cargo_params, &target_options, None).chain_err(
+        run_cargo(verbose, false, false, &cargo_params, &target_options, None, None).chain_err(
             || "run cargo failed",
         )?;
         return Ok(());
@@ -545,6 +585,7 @@ pub fn run() -> Result<()> {
             .values_of("run_on_target_params")
             .map(|x| x.collect())
             .unwrap_or_else(|| vec![]);
+        let test_args = run_on_target_matches.value_of("test_args");
         let (program, args) = run_params.split_first().unwrap();
         return run_program_on_target(
             program,
@@ -552,6 +593,7 @@ pub fn run() -> Result<()> {
             &target_options,
             run_on_target_matches.is_present("launch"),
             args,
+            test_args,
         );
     }
 
