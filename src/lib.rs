@@ -12,11 +12,15 @@ extern crate clap;
 #[macro_use]
 extern crate error_chain;
 extern crate uname;
+extern crate toml;
+#[macro_use]
+extern crate serde_derive;
 
 mod device;
 mod cross;
 mod sdk;
 mod utils;
+mod gn_deps;
 
 mod errors {
     // Create the Error, ErrorKind, ResultExt, and Result types
@@ -39,6 +43,7 @@ use errors::*;
 use clap::{App, AppSettings, Arg, SubCommand};
 use cross::{pkg_config_path, run_configure, run_pkg_config};
 use device::{netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
+use gn_deps::list_gn_deps;
 use sdk::{clang_linker_path, sysroot_path};
 pub use sdk::TargetOptions;
 use std::fs;
@@ -217,7 +222,7 @@ fn run_binary(
 /// use fargo::{run_cargo, TargetOptions};
 ///
 /// let target_options = TargetOptions::new(true, None);
-/// run_cargo(false, true, false, &["--help"], &target_options, None);
+/// run_cargo(false, true, false, &["--help"], &target_options, None, None);
 ///
 /// ```
 pub fn run_cargo(
@@ -467,6 +472,11 @@ pub fn run() -> Result<()> {
                     "Don't pass --host to configure",
                 )),
         )
+        .subcommand(
+            SubCommand::with_name("gn-deps")
+                .about("List all dependent crates with BUILD.gn files")
+                .arg(Arg::with_name("target_crate").index(1))
+        )
         .get_matches();
 
     let verbose = matches.is_present("verbose");
@@ -620,6 +630,14 @@ pub fn run() -> Result<()> {
             &configure_params,
             &target_options,
         ).chain_err(|| "run_configure failed")?;
+        return Ok(());
+    }
+
+    if let Some(gn_deps_matches) = matches.subcommand_matches("gn-deps") {
+        let target_crate = gn_deps_matches.value_of("target_crate").unwrap();
+        list_gn_deps(&target_options, &PathBuf::from(target_crate)).chain_err(
+            || "list gn deps failed",
+        )?;
         return Ok(());
     }
 
