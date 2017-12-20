@@ -9,6 +9,7 @@ use toml::Value as Toml;
 error_chain!{
     foreign_links {
         Io(::std::io::Error);
+        Toml(toml::de::Error);
     }
 }
 
@@ -23,6 +24,7 @@ error_chain!{
 struct Manifest {
     package: Option<Package>,
     dependencies: Option<Toml>,
+    workspace: Option<Toml>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,7 +33,7 @@ struct Package {
 }
 
 pub fn get_dependency_names(manifest: &str) -> Result<HashSet<String>> {
-    let decoded: Manifest = toml::from_str(&manifest).unwrap();
+    let decoded: Manifest = toml::from_str(&manifest)?;
     let deps = decoded.dependencies.chain_err(|| "Crate manifest had no dependencies.")?;
     let mut dep_set = HashSet::new();
     let deps_table = match deps {
@@ -40,12 +42,19 @@ pub fn get_dependency_names(manifest: &str) -> Result<HashSet<String>> {
     };
     for (key, value) in deps_table.iter() {
         match value {
-            &Toml::String(ref version) => {
+            &Toml::String(ref _version) => {
                 dep_set.insert(key.clone());
             }
             _ => bail!("Crate {} manifest has a non-string dependency", key),
         }
     }
+    Ok(dep_set)
+}
+
+pub fn get_crates_with_build_files(workspace: &str) -> Result<HashSet<String>> {
+    let decoded: Manifest = toml::from_str(&workspace)?;
+    println!("decoded = {:?}", decoded);
+    let mut dep_set = HashSet::new();
     Ok(dep_set)
 }
 
@@ -90,13 +99,59 @@ mod tests {
     tokio-fuchsia = "0.1.0"
     "#;
 
-    use gn_deps::get_dependency_names;
+    use gn_deps::{get_crates_with_build_files, get_dependency_names};
 
     #[test]
     fn test_get_dependency_names() {
         let result = get_dependency_names(FUCHSIA_APP_CONTENTS).unwrap();
         println!("result = {:?}", result);
         assert_eq!(10, result.len());
+    }
+
+    static WORKSPACE_CONTENTS: &'static str = r#"
+    [workspace]
+    members =  [
+      "bin/device_settings",
+      "examples/fidl/*_rust",
+      "examples/network/wget-rs",
+      "public/lib/fidl/rust/fidl",
+      "public/rust/crates/fdio",
+      "public/rust/crates/fuchsia-app",
+      "public/rust/crates/fuchsia-vfs",
+      "public/rust/crates/fuchsia-zircon",
+      "public/rust/crates/fuchsia-zircon/fuchsia-zircon-sys",
+      "public/rust/crates/mxruntime",
+      "public/rust/crates/mxruntime/mxruntime-sys",
+      "public/rust/fidl_crates/garnet_examples_fidl_services",
+      "public/rust/fidl_crates/garnet_public_lib_app_fidl",
+      "public/rust/fidl_crates/garnet_public_lib_app_fidl_service_provider",
+      "public/rust/fidl_crates/garnet_public_lib_device_settings_fidl",
+      "public/rust/fidl_crates/garnet_public_lib_fsl_fidl",
+    ]
+
+    [patch.crates-io]
+    fdio = { path = "public/rust/crates/fdio" }
+    fidl = { path = "public/lib/fidl/rust/fidl" }
+    fuchsia-app = { path = "public/rust/crates/fuchsia-app" }
+    fuchsia-zircon = { path = "public/rust/crates/fuchsia-zircon" }
+    fuchsia-zircon-sys = { path = "public/rust/crates/fuchsia-zircon/fuchsia-zircon-sys" }
+    garnet_examples_fidl_services = { path = "public/rust/fidl_crates/garnet_examples_fidl_services" }
+    garnet_public_lib_app_fidl = { path = "public/rust/fidl_crates/garnet_public_lib_app_fidl" }
+    garnet_public_lib_app_fidl_service_provider = { path = "public/rust/fidl_crates/garnet_public_lib_app_fidl_service_provider" }
+    garnet_public_lib_device_settings_fidl = { path = "public/rust/fidl_crates/garnet_public_lib_device_settings_fidl" }
+    garnet_public_lib_fsl_fidl = { path = "public/rust/fidl_crates/garnet_public_lib_fsl_fidl" }
+    mio = { path = "../third_party/rust-mirrors/mio" }
+    mxruntime = { path = "public/rust/crates/mxruntime" }
+    mxruntime-sys = { path = "public/rust/crates/mxruntime/mxruntime-sys" }
+    rand = { path = "../third_party/rust-mirrors/rand" }
+    tokio-core = { path = "../third_party/rust-mirrors/tokio-core" }
+    tokio-fuchsia = { path = "public/rust/crates/tokio-fuchsia" }
+    "#;
+
+    #[test]
+    fn test_get_crates_with_build_files() {
+        let result = get_crates_with_build_files(WORKSPACE_CONTENTS).unwrap();
+        println!("result = {:?}", result);
     }
 
 }
