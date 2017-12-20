@@ -1,4 +1,5 @@
 use sdk::TargetOptions;
+use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::prelude::*;
@@ -11,7 +12,12 @@ error_chain!{
         Io(::std::io::Error);
         Toml(toml::de::Error);
     }
+
+    links {
+        SDK(::sdk::Error, ::sdk::ErrorKind);
+    }
 }
+
 
 /*
 * Load workspace Cargo.toml
@@ -24,12 +30,29 @@ error_chain!{
 struct Manifest {
     package: Option<Package>,
     dependencies: Option<Toml>,
-    workspace: Option<Toml>,
+    workspace: Option<Workspace>,
+    patch: Option<PatchTable>,
 }
 
 #[derive(Debug, Deserialize)]
 struct Package {
     name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Workspace {
+    members: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PatchTable {
+    #[serde(rename = "crates-io")]
+    crates_io: Option<BTreeMap<String, Patch>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Patch {
+    path: String,
 }
 
 pub fn get_dependency_names(manifest: &str) -> Result<HashSet<String>> {
@@ -51,11 +74,23 @@ pub fn get_dependency_names(manifest: &str) -> Result<HashSet<String>> {
     Ok(dep_set)
 }
 
-pub fn get_crates_with_build_files(workspace: &str) -> Result<HashSet<String>> {
+pub fn get_crates_with_build_files(
+    workspace: &str,
+    workspace_root: &PathBuf,
+) -> Result<BTreeMap<String, PathBuf>> {
     let decoded: Manifest = toml::from_str(&workspace)?;
-    println!("decoded = {:?}", decoded);
-    let mut dep_set = HashSet::new();
-    Ok(dep_set)
+    let patches = decoded.patch.chain_err(|| "Crate manifest had no patch section.")?;
+    let crates_patches =
+        patches.crates_io.chain_err(|| "Crate manifest had no patch section for crates-io.")?;
+    let mut crates = BTreeMap::new();
+    for (key, value) in crates_patches.iter() {
+        let crate_path = workspace_root.join(&value.path).canonicalize().unwrap();
+        let build_gn_path = crate_path.join("BUILD.gn");
+        if build_gn_path.exists() {
+            crates.insert(key.clone(), crate_path);
+        }
+    }
+    Ok(crates)
 }
 
 pub fn list_gn_deps(target_options: &TargetOptions, crate_path: &PathBuf) -> Result<()> {
@@ -100,6 +135,7 @@ mod tests {
     "#;
 
     use gn_deps::{get_crates_with_build_files, get_dependency_names};
+    use sdk::{TargetOptions, fuchsia_root};
 
     #[test]
     fn test_get_dependency_names() {
@@ -150,8 +186,12 @@ mod tests {
 
     #[test]
     fn test_get_crates_with_build_files() {
-        let result = get_crates_with_build_files(WORKSPACE_CONTENTS).unwrap();
+        let target_options = TargetOptions::new(false, None);
+        let fuchsia_root = fuchsia_root(&target_options).unwrap();
+        let garnet_root = fuchsia_root.join("garnet");
+        let result = get_crates_with_build_files(WORKSPACE_CONTENTS, &garnet_root).unwrap();
         println!("result = {:?}", result);
+        assert_eq!(11, result.len());
     }
 
 }
