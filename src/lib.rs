@@ -46,6 +46,22 @@ use std::path::PathBuf;
 use std::process::Command;
 use utils::strip_binary;
 
+fn copy_to_target(
+    source_path: &PathBuf,
+    verbose: bool,
+    target_options: &TargetOptions,
+) -> Result<String> {
+    let netaddr = netaddr(verbose, target_options)?;
+    if verbose {
+        println!("netaddr {}", netaddr);
+    }
+    let destination_path =
+        format!("/tmp/{}", source_path.file_name().unwrap().to_string_lossy());
+    println!("copying {} to {}", source_path.to_string_lossy(), destination_path);
+    scp_to_device(verbose, target_options, &netaddr, &source_path, &destination_path)?;
+    Ok(destination_path)
+}
+
 fn run_program_on_target(
     filename: &str,
     verbose: bool,
@@ -54,16 +70,9 @@ fn run_program_on_target(
     params: &[&str],
     test_args: Option<&str>,
 ) -> Result<()> {
-    let netaddr = netaddr(verbose, target_options)?;
-    if verbose {
-        println!("netaddr {}", netaddr);
-    }
     let source_path = PathBuf::from(&filename);
     let stripped_source_path = strip_binary(&source_path, target_options)?;
-    let destination_path =
-        format!("/tmp/{}", stripped_source_path.file_name().unwrap().to_string_lossy());
-    println!("copying {} to {}", source_path.to_string_lossy(), destination_path);
-    scp_to_device(verbose, target_options, &netaddr, &stripped_source_path, &destination_path)?;
+    let destination_path = copy_to_target(&stripped_source_path, verbose, target_options)?;
     let mut command_string = (if launch { "launch " } else { "" }).to_string();
     command_string.push_str(&destination_path);
     for param in params {
@@ -203,6 +212,26 @@ fn run_binary(
     }
 
     run_cargo(verbose, release, launch, &args, target_options, None, None)?;
+    Ok(())
+}
+
+fn load_driver(
+    verbose: bool,
+    release: bool,
+    target_options: &TargetOptions,
+) -> Result<()> {
+    let args = vec!["build"];
+    run_cargo(verbose, release, false, &args, target_options, None, None)?;
+    let cwd = std::env::current_dir()?;
+    let package = cwd.file_name().ok_or("No current directory")?
+        .to_str().ok_or("Invalid current directory")?;
+    let filename = PathBuf::from(format!("target/x86_64-unknown-fuchsia/debug/lib{}.so", package));
+    let destination_path = copy_to_target(&filename, verbose, target_options)?;
+    let command_string = format!("dm add-driver:{}", destination_path);
+    if verbose {
+        println!("running {}", command_string);
+    }
+    ssh(verbose, target_options, &command_string)?;
     Ok(())
 }
 
@@ -400,6 +429,13 @@ pub fn run() -> Result<()> {
                 ),
         )
         .subcommand(
+            SubCommand::with_name("load-driver")
+                .about("Build driver and load it on Fuchsia device or emulator.")
+                .arg(Arg::with_name("release").long("release").help(
+                    "Build release",
+                ))
+        )
+        .subcommand(
             SubCommand::with_name("list-devices")
                 .about("List visible Fuchsia devices")
         )
@@ -528,6 +564,14 @@ pub fn run() -> Result<()> {
             &target_options,
             &params,
         ).chain_err(|| "running binary failed");
+    }
+
+    if let Some(load_driver_matches) = matches.subcommand_matches("load-driver") {
+        return load_driver(
+            verbose,
+            load_driver_matches.is_present("release"),
+            &target_options
+        ).chain_err(|| "loading driver failed");
     }
 
     if let Some(build_test_matches) = matches.subcommand_matches("build-tests") {
