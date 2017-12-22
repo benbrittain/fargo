@@ -85,11 +85,8 @@ pub fn strip_tool_path(target_options: &TargetOptions) -> Result<PathBuf> {
 }
 
 pub fn sysroot_path(options: &TargetOptions) -> Result<PathBuf> {
-    let zircon_name = if options.target_cpu == "x86-64" {
-        "build-user-x86-64"
-    } else {
-        "build-user-arm64"
-    };
+    let zircon_name =
+        if options.target_cpu == "x86-64" { "build-user-x86-64" } else { "build-user-arm64" };
     Ok(fuchsia_root(&options)?.join("out").join("build-zircon").join(zircon_name).join("sysroot"))
 }
 

@@ -1,4 +1,4 @@
-use sdk::TargetOptions;
+use sdk::{TargetOptions, fuchsia_root};
 use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::fs::File;
@@ -95,14 +95,26 @@ pub fn get_crates_with_build_files(
 
 pub fn list_gn_deps(target_options: &TargetOptions, crate_path: &PathBuf) -> Result<()> {
     let full_path = crate_path.canonicalize()?;
-    println!("target_options = {:?}, full_path = {:?}", target_options, full_path);
     let cargo_toml_path = full_path.join("Cargo.toml");
-    println!("cargo_toml_path = {:?}", cargo_toml_path);
     let mut cargo_toml_file = File::open(cargo_toml_path)?;
     let mut toml_str = String::new();
     cargo_toml_file.read_to_string(&mut toml_str)?;
 
     let dep_names = get_dependency_names(&toml_str)?;
+    let fuchsia_root = fuchsia_root(target_options).unwrap();
+    let garnet_root = fuchsia_root.join("garnet");
+    let workspace_path = garnet_root.join("Cargo.toml");
+    let mut workspace_file = File::open(workspace_path)?;
+    let mut workspace_contents_str = String::new();
+    workspace_file.read_to_string(&mut workspace_contents_str)?;
+    let crates_with_build_files =
+        get_crates_with_build_files(&workspace_contents_str, &garnet_root)?;
+    for crate_name in dep_names {
+        match crates_with_build_files.get(&crate_name) {
+            Some(path) => println!("{}", path.to_string_lossy()),
+            None => (),
+        }
+    }
     Ok(())
 }
 
