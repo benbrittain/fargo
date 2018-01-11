@@ -80,16 +80,18 @@ pub fn target_out_dir(options: &TargetOptions) -> Result<PathBuf> {
     possible_target_out_dir(&fuchsia_root, options)
 }
 
+pub fn target_gen_dir(options: &TargetOptions) -> Result<PathBuf> {
+    let target_out_dir = target_out_dir(options)?;
+    Ok(target_out_dir.join("gen"))
+}
+
 pub fn strip_tool_path(target_options: &TargetOptions) -> Result<PathBuf> {
     Ok(toolchain_path(target_options)?.join("bin/strip"))
 }
 
 pub fn sysroot_path(options: &TargetOptions) -> Result<PathBuf> {
-    let zircon_name = if options.target_cpu == "x86-64" {
-        "build-user-x86-64"
-    } else {
-        "build-user-arm64"
-    };
+    let zircon_name =
+        if options.target_cpu == "x86-64" { "build-user-x86-64" } else { "build-user-arm64" };
     Ok(fuchsia_root(&options)?.join("out").join("build-zircon").join(zircon_name).join("sysroot"))
 }
 

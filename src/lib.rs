@@ -39,7 +39,7 @@ use errors::*;
 use clap::{App, AppSettings, Arg, SubCommand};
 use cross::{pkg_config_path, run_configure, run_pkg_config};
 use device::{netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
-use sdk::{clang_linker_path, sysroot_path};
+use sdk::{clang_linker_path, sysroot_path, target_gen_dir};
 pub use sdk::TargetOptions;
 use std::fs;
 use std::path::PathBuf;
@@ -246,7 +246,7 @@ fn load_driver(
 /// use fargo::{run_cargo, TargetOptions};
 ///
 /// let target_options = TargetOptions::new(true, None);
-/// run_cargo(false, true, false, &["--help"], &target_options, None);
+/// run_cargo(false, true, false, &["--help"], &target_options, None, None);
 ///
 /// ```
 pub fn run_cargo(
@@ -322,6 +322,7 @@ pub fn run_cargo(
         .env("PKG_CONFIG_ALLOW_CROSS", "1")
         .env("PKG_CONFIG_PATH", "")
         .env("PKG_CONFIG_LIBDIR", pkg_path)
+        .env("FUCHSIA_GEN_ROOT", target_gen_dir(target_options)?)
         .args(args)
         .args(target_args);
 
