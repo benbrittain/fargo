@@ -30,8 +30,8 @@ pub fn strip_binary(binary: &PathBuf, target_options: &TargetOptions) -> Result<
     let new_file_name = file_name.to_string_lossy().into_owned() + "_stripped";
     let target_path = binary.parent().unwrap().join(new_file_name);
     let strip_result = Command::new(strip_tool_path(target_options)?)
+        .arg("-strip-all")
         .arg(binary)
-        .arg("-o")
         .arg(&target_path)
         .status()
         .chain_err(|| "strip command failed to start")?;

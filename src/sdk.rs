@@ -86,7 +86,7 @@ pub fn target_gen_dir(options: &TargetOptions) -> Result<PathBuf> {
 }
 
 pub fn strip_tool_path(target_options: &TargetOptions) -> Result<PathBuf> {
-    Ok(toolchain_path(target_options)?.join("bin/strip"))
+    Ok(toolchain_path(target_options)?.join("bin/llvm-objcopy"))
 }
 
 pub fn sysroot_path(options: &TargetOptions) -> Result<PathBuf> {
