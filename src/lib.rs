@@ -38,7 +38,7 @@ use errors::*;
 
 use clap::{App, AppSettings, Arg, SubCommand};
 use cross::{pkg_config_path, run_configure, run_pkg_config};
-use device::{netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
+use device::{enable_networking, netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
 use sdk::{clang_linker_path, sysroot_path, target_gen_dir};
 pub use sdk::TargetOptions;
 use std::fs;
@@ -55,8 +55,7 @@ fn copy_to_target(
     if verbose {
         println!("netaddr {}", netaddr);
     }
-    let destination_path =
-        format!("/tmp/{}", source_path.file_name().unwrap().to_string_lossy());
+    let destination_path = format!("/tmp/{}", source_path.file_name().unwrap().to_string_lossy());
     println!("copying {} to {}", source_path.to_string_lossy(), destination_path);
     scp_to_device(verbose, target_options, &netaddr, &source_path, &destination_path)?;
     Ok(destination_path)
@@ -215,16 +214,12 @@ fn run_binary(
     Ok(())
 }
 
-fn load_driver(
-    verbose: bool,
-    release: bool,
-    target_options: &TargetOptions,
-) -> Result<()> {
+fn load_driver(verbose: bool, release: bool, target_options: &TargetOptions) -> Result<()> {
     let args = vec!["build"];
     run_cargo(verbose, release, false, &args, target_options, None, None)?;
     let cwd = std::env::current_dir()?;
-    let package = cwd.file_name().ok_or("No current directory")?
-        .to_str().ok_or("Invalid current directory")?;
+    let package =
+        cwd.file_name().ok_or("No current directory")?.to_str().ok_or("Invalid current directory")?;
     let filename = PathBuf::from(format!("target/x86_64-unknown-fuchsia/debug/lib{}.so", package));
     let destination_path = copy_to_target(&filename, verbose, target_options)?;
     let command_string = format!("dm add-driver:{}", destination_path);
@@ -452,6 +447,9 @@ pub fn run() -> Result<()> {
         .subcommand(SubCommand::with_name("stop").about(
             "Stop all Fuchsia emulators",
         ))
+        .subcommand(SubCommand::with_name("enable-networking").about(
+            "Enable networking for a running emulator",
+        ))
         .subcommand(
             SubCommand::with_name("restart")
                 .about("Stop all Fuchsia emulators and start a new one")
@@ -568,11 +566,8 @@ pub fn run() -> Result<()> {
     }
 
     if let Some(load_driver_matches) = matches.subcommand_matches("load-driver") {
-        return load_driver(
-            verbose,
-            load_driver_matches.is_present("release"),
-            &target_options
-        ).chain_err(|| "loading driver failed");
+        return load_driver(verbose, load_driver_matches.is_present("release"), &target_options)
+            .chain_err(|| "loading driver failed");
     }
 
     if let Some(build_test_matches) = matches.subcommand_matches("build-tests") {
@@ -600,6 +595,10 @@ pub fn run() -> Result<()> {
 
     if matches.subcommand_matches("stop").is_some() {
         return stop_emulator().chain_err(|| "stopping emulator failed");
+    }
+
+    if matches.subcommand_matches("enable-networking").is_some() {
+        return enable_networking().chain_err(|| "enabling networking failed");
     }
 
     if let Some(restart_matches) = matches.subcommand_matches("restart") {

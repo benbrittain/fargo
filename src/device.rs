@@ -252,3 +252,7 @@ pub fn stop_emulator() -> Result<()> {
     Command::new("killall").arg("qemu-system-x86_64").status()?;
     Ok(())
 }
+
+pub fn enable_networking() -> Result<()> {
+    setup_network()
+}
