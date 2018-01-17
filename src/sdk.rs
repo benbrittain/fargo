@@ -85,6 +85,12 @@ pub fn target_gen_dir(options: &TargetOptions) -> Result<PathBuf> {
     Ok(target_out_dir.join("gen"))
 }
 
+pub fn cargo_out_dir(options: &TargetOptions) -> Result<PathBuf> {
+    let fuchsia_root = fuchsia_root(options)?;
+    let target_triple = format!("{}-unknown-fuchsia", options.target_cpu_linker);
+    Ok(fuchsia_root.join("garnet").join("target").join(target_triple).join("debug"))
+}
+
 pub fn strip_tool_path(target_options: &TargetOptions) -> Result<PathBuf> {
     Ok(toolchain_path(target_options)?.join("bin/llvm-objcopy"))
 }
