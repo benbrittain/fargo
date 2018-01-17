@@ -39,7 +39,7 @@ use errors::*;
 use clap::{App, AppSettings, Arg, SubCommand};
 use cross::{pkg_config_path, run_configure, run_pkg_config};
 use device::{enable_networking, netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
-use sdk::{clang_linker_path, sysroot_path, target_gen_dir};
+use sdk::{clang_linker_path, cargo_out_dir, sysroot_path, target_gen_dir};
 pub use sdk::TargetOptions;
 use std::fs;
 use std::path::PathBuf;
@@ -220,7 +220,7 @@ fn load_driver(verbose: bool, release: bool, target_options: &TargetOptions) -> 
     let cwd = std::env::current_dir()?;
     let package =
         cwd.file_name().ok_or("No current directory")?.to_str().ok_or("Invalid current directory")?;
-    let filename = PathBuf::from(format!("target/x86_64-unknown-fuchsia/debug/lib{}.so", package));
+    let filename = cargo_out_dir(target_options)?.join(format!("lib{}.so", package));
     let destination_path = copy_to_target(&filename, verbose, target_options)?;
     let command_string = format!("dm add-driver:{}", destination_path);
     if verbose {
