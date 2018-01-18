@@ -10,7 +10,7 @@
 
 extern crate clap;
 #[macro_use]
-extern crate error_chain;
+extern crate failure;
 extern crate uname;
 
 mod device;
@@ -18,28 +18,11 @@ mod cross;
 mod sdk;
 mod utils;
 
-mod errors {
-    // Create the Error, ErrorKind, ResultExt, and Result types
-    error_chain!{
-        links {
-            Device(::device::Error, ::device::ErrorKind);
-            Cross(::cross::Error, ::cross::ErrorKind);
-            SDK(::sdk::Error, ::sdk::ErrorKind);
-            Utils(::utils::Error, ::utils::ErrorKind);
-        }
-
-        foreign_links {
-            Io(::std::io::Error);
-        }
-    }
-}
-
-use errors::*;
-
 use clap::{App, AppSettings, Arg, SubCommand};
 use cross::{pkg_config_path, run_configure, run_pkg_config};
 use device::{enable_networking, netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
-use sdk::{clang_linker_path, cargo_out_dir, sysroot_path, target_gen_dir};
+use failure::{Error, ResultExt, err_msg};
+use sdk::{cargo_out_dir, clang_linker_path, sysroot_path, target_gen_dir};
 pub use sdk::TargetOptions;
 use std::fs;
 use std::path::PathBuf;
@@ -50,7 +33,7 @@ fn copy_to_target(
     source_path: &PathBuf,
     verbose: bool,
     target_options: &TargetOptions,
-) -> Result<String> {
+) -> Result<String, Error> {
     let netaddr = netaddr(verbose, target_options)?;
     if verbose {
         println!("netaddr {}", netaddr);
@@ -68,7 +51,7 @@ fn run_program_on_target(
     launch: bool,
     params: &[&str],
     test_args: Option<&str>,
-) -> Result<()> {
+) -> Result<(), Error> {
     let source_path = PathBuf::from(&filename);
     let stripped_source_path = strip_binary(&source_path, target_options)?;
     let destination_path = copy_to_target(&stripped_source_path, verbose, target_options)?;
@@ -97,22 +80,22 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use std::sync::mpsc::channel;
 use std::time::Duration;
 
-fn autotest(verbose: bool, release: bool, target_options: &TargetOptions) -> Result<()> {
+fn autotest(verbose: bool, release: bool, target_options: &TargetOptions) -> Result<(), Error> {
     let (tx, rx) = channel();
     let mut watcher: RecommendedWatcher =
-        Watcher::new(tx, Duration::from_secs(1)).chain_err(|| "autotest: watcher creation failed")?;
+        Watcher::new(tx, Duration::from_secs(1)).context("autotest: watcher creation failed")?;
 
-    let cwd = std::fs::canonicalize(std::env::current_dir()?).chain_err(
-        || "autotest: canonicalize working directory",
+    let cwd = std::fs::canonicalize(std::env::current_dir()?).context(
+        "autotest: canonicalize working directory",
     )?;
     let tgt = cwd.join("target");
     let git = cwd.join(".git");
 
-    watcher.watch(&cwd, RecursiveMode::Recursive).chain_err(|| "autotest: watch failed")?;
+    watcher.watch(&cwd, RecursiveMode::Recursive).context("autotest: watch failed")?;
 
     println!("autotest: started");
     loop {
-        let event = rx.recv().chain_err(|| "autotest: watch error")?;
+        let event = rx.recv().context("autotest: watch recv failed")?;
         match event {
             notify::DebouncedEvent::Create(path) |
             notify::DebouncedEvent::Write(path) |
@@ -135,7 +118,7 @@ fn build_tests(
     release: bool,
     target_options: &TargetOptions,
     test_target: &str,
-) -> Result<bool> {
+) -> Result<bool, Error> {
     run_tests(verbose, release, true, target_options, test_target, &[], None)?;
     Ok(true)
 }
@@ -148,7 +131,7 @@ fn run_tests(
     test_target: &str,
     params: &[&str],
     target_params: Option<&str>,
-) -> Result<()> {
+) -> Result<(), Error> {
 
     let mut args = vec!["test"];
 
@@ -188,7 +171,7 @@ fn build_binary(
     release: bool,
     target_options: &TargetOptions,
     params: &[&str],
-) -> Result<()> {
+) -> Result<(), Error> {
     let mut args = vec!["build"];
     for param in params {
         args.push(param);
@@ -203,7 +186,7 @@ fn run_binary(
     launch: bool,
     target_options: &TargetOptions,
     params: &[&str],
-) -> Result<()> {
+) -> Result<(), Error> {
 
     let mut args = vec!["run"];
     for param in params {
@@ -214,12 +197,13 @@ fn run_binary(
     Ok(())
 }
 
-fn load_driver(verbose: bool, release: bool, target_options: &TargetOptions) -> Result<()> {
+fn load_driver(verbose: bool, release: bool, target_options: &TargetOptions) -> Result<(), Error> {
     let args = vec!["build"];
     run_cargo(verbose, release, false, &args, target_options, None, None)?;
     let cwd = std::env::current_dir()?;
-    let package =
-        cwd.file_name().ok_or("No current directory")?.to_str().ok_or("Invalid current directory")?;
+    let package = cwd.file_name().ok_or(err_msg("No current directory"))?.to_str().ok_or(err_msg(
+        "Invalid current directory",
+    ))?;
     let filename = cargo_out_dir(target_options)?.join(format!("lib{}.so", package));
     let destination_path = copy_to_target(&filename, verbose, target_options)?;
     let command_string = format!("dm add-driver:{}", destination_path);
@@ -252,7 +236,7 @@ pub fn run_cargo(
     target_options: &TargetOptions,
     runner: Option<PathBuf>,
     additional_target_args: Option<&str>,
-) -> Result<()> {
+) -> Result<(), Error> {
     let mut target_args = vec!["--target", "x86_64-unknown-fuchsia"];
 
     if release {
@@ -270,7 +254,9 @@ pub fn run_cargo(
     };
 
     let mut runner_args =
-        vec![fargo_path.to_str().ok_or_else(|| "unable to convert path to utf8 encoding")?];
+        vec![
+            fargo_path.to_str().ok_or_else(|| err_msg("unable to convert path to utf8 encoding"))?,
+        ];
 
     if verbose {
         runner_args.push("-v");
@@ -337,7 +323,7 @@ pub fn run_cargo(
 }
 
 #[doc(hidden)]
-pub fn run() -> Result<()> {
+pub fn run() -> Result<(), Error> {
     let matches = App::new("fargo")
         .version("v0.1.0")
         .setting(AppSettings::GlobalVersion)
@@ -529,7 +515,7 @@ pub fn run() -> Result<()> {
             test_target,
             &test_params,
             test_args,
-        ).chain_err(|| "running tests failed");
+        );
     }
 
     if let Some(build_matches) = matches.subcommand_matches("build") {
@@ -544,8 +530,7 @@ pub fn run() -> Result<()> {
             params.push("--examples");
         }
 
-        build_binary(verbose, build_matches.is_present("release"), &target_options, &params)
-            .chain_err(|| "building binary failed")?;
+        build_binary(verbose, build_matches.is_present("release"), &target_options, &params)?;
         return Ok(());
     }
 
@@ -562,12 +547,11 @@ pub fn run() -> Result<()> {
             run_matches.is_present("launch"),
             &target_options,
             &params,
-        ).chain_err(|| "running binary failed");
+        );
     }
 
     if let Some(load_driver_matches) = matches.subcommand_matches("load-driver") {
-        return load_driver(verbose, load_driver_matches.is_present("release"), &target_options)
-            .chain_err(|| "loading driver failed");
+        return load_driver(verbose, load_driver_matches.is_present("release"), &target_options);
     }
 
     if let Some(build_test_matches) = matches.subcommand_matches("build-tests") {
@@ -577,12 +561,12 @@ pub fn run() -> Result<()> {
             build_test_matches.is_present("release"),
             &target_options,
             test_target,
-        ).chain_err(|| "building tests failed")?;
+        )?;
         return Ok(());
     }
 
     if matches.subcommand_matches("list-devices").is_some() {
-        return netls(verbose, &target_options).chain_err(|| "netls failed");
+        return netls(verbose, &target_options);
     }
 
     if let Some(start_matches) = matches.subcommand_matches("start") {
@@ -590,38 +574,35 @@ pub fn run() -> Result<()> {
             start_matches.is_present("graphics"),
             !start_matches.is_present("no_net"),
             &target_options,
-        ).chain_err(|| "starting emulator failed");
+        );
     }
 
     if matches.subcommand_matches("stop").is_some() {
-        return stop_emulator().chain_err(|| "stopping emulator failed");
+        return stop_emulator();
     }
 
     if matches.subcommand_matches("enable-networking").is_some() {
-        return enable_networking().chain_err(|| "enabling networking failed");
+        return enable_networking();
     }
 
     if let Some(restart_matches) = matches.subcommand_matches("restart") {
-        stop_emulator().chain_err(|| "in restart, stopping emulator failed")?;
+        stop_emulator()?;
 
         return start_emulator(
             restart_matches.is_present("graphics"),
             !restart_matches.is_present("no_net"),
             &target_options,
-        ).chain_err(|| "in restart, starting emulator failed");
+        );
     }
 
     if matches.subcommand_matches("ssh").is_some() {
-        return ssh(verbose, &target_options, "").chain_err(|| "ssh failed");
+        return ssh(verbose, &target_options, "");
     }
 
     if let Some(cargo_matches) = matches.subcommand_matches("cargo") {
         let cargo_params =
             cargo_matches.values_of("cargo_params").map(|x| x.collect()).unwrap_or_else(|| vec![]);
-        run_cargo(verbose, false, false, &cargo_params, &target_options, None, None).chain_err(
-            || "run cargo failed",
-        )?;
-        return Ok(());
+        return run_cargo(verbose, false, false, &cargo_params, &target_options, None, None);
     }
 
     if let Some(run_on_target_matches) = matches.subcommand_matches("run-on-target") {
@@ -644,9 +625,7 @@ pub fn run() -> Result<()> {
     if let Some(pkg_matches) = matches.subcommand_matches("pkg-config") {
         let pkg_params =
             pkg_matches.values_of("pkgconfig_param").map(|x| x.collect()).unwrap_or_else(|| vec![]);
-        let exit_code = run_pkg_config(verbose, &pkg_params, &target_options).chain_err(
-            || "run_pkg_config failed",
-        )?;
+        let exit_code = run_pkg_config(verbose, &pkg_params, &target_options)?;
         if exit_code != 0 {
             ::std::process::exit(exit_code);
         }
@@ -663,7 +642,7 @@ pub fn run() -> Result<()> {
             !configure_matches.is_present("no-host"),
             &configure_params,
             &target_options,
-        ).chain_err(|| "run_configure failed")?;
+        )?;
         return Ok(());
     }
 

@@ -2,30 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+use failure::{Error, ResultExt};
 use sdk::{TargetOptions, sysroot_path, toolchain_path};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-error_chain!{
-
-    links {
-        SDK(::sdk::Error, ::sdk::ErrorKind);
-    }
-
-    foreign_links {
-        Io(::std::io::Error);
-    }
-}
-
-pub fn cross_root(target_options: &TargetOptions) -> Result<PathBuf> {
-    let home_value = env::var("HOME").chain_err(|| "HOME environmental variable not set")?;
+pub fn cross_root(target_options: &TargetOptions) -> Result<PathBuf, Error> {
+    let home_value = env::var("HOME")?;
 
     Ok(PathBuf::from(home_value).join(".fargo").join("native_deps").join(target_options.target_cpu))
 }
 
-pub fn pkg_config_path(target_options: &TargetOptions) -> Result<PathBuf> {
+pub fn pkg_config_path(target_options: &TargetOptions) -> Result<PathBuf, Error> {
     Ok(cross_root(target_options)?.join("lib").join("pkgconfig"))
 }
 
@@ -33,7 +23,7 @@ pub fn run_pkg_config(
     verbose: bool,
     args: &[&str],
     target_options: &TargetOptions,
-) -> Result<(i32)> {
+) -> Result<i32, Error> {
 
     let mut cmd = Command::new("pkg-config");
 
@@ -46,7 +36,9 @@ pub fn run_pkg_config(
         println!("pkg-config: {:?}", cmd);
     }
 
-    cmd.status().chain_err(|| "Unable to run pkg-config").map(|s| match s.code() {
+    let status = cmd.status().context("Unable to run pkg-config")?;
+
+    Ok(match status.code() {
         Some(code) => code,
         None => 1,
     })
@@ -57,10 +49,10 @@ pub fn run_configure(
     use_host: bool,
     args: &[&str],
     target_options: &TargetOptions,
-) -> Result<(bool)> {
+) -> Result<bool, Error> {
 
-    let cwd = fs::canonicalize(env::current_dir()?).chain_err(
-        || "run_configure: canonicalize working directory",
+    let cwd = fs::canonicalize(env::current_dir()?).context(
+        "run_configure: canonicalize working directory",
     )?;
 
     let cross_root = cross_root(target_options)?;
@@ -127,5 +119,5 @@ pub fn run_configure(
         println!("configure: {:?}", cmd);
     }
 
-    cmd.status().chain_err(|| "Unable to run configure").map(|s| s.success())
+    Ok(cmd.status().context("Unable to run configure")?.success())
 }

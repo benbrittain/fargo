@@ -2,11 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+use failure::Error;
 use std::env;
 use std::path::PathBuf;
 use utils::is_mac;
-
-error_chain!{}
 
 /// The `TargetOptions` struct bundles together a number of parameters specific to
 /// the Fuchsia target that need to be passed through various internal functions. For
@@ -41,7 +40,7 @@ impl<'a> TargetOptions<'a> {
     }
 }
 
-pub fn fuchsia_root(options: &TargetOptions) -> Result<PathBuf> {
+pub fn fuchsia_root(options: &TargetOptions) -> Result<PathBuf, Error> {
     let fuchsia_root_value = if let Ok(fuchsia_root_value) = env::var("FUCHSIA_ROOT") {
         fuchsia_root_value
     } else {
@@ -65,7 +64,10 @@ pub fn fuchsia_root(options: &TargetOptions) -> Result<PathBuf> {
     Ok(PathBuf::from(fuchsia_root_value))
 }
 
-pub fn possible_target_out_dir(fuchsia_root: &PathBuf, options: &TargetOptions) -> Result<PathBuf> {
+pub fn possible_target_out_dir(
+    fuchsia_root: &PathBuf,
+    options: &TargetOptions,
+) -> Result<PathBuf, Error> {
     let out_dir_name_prefix = if options.release_os { "release" } else { "debug" };
     let out_dir_name = format!("{}-{}", out_dir_name_prefix, options.target_cpu);
     let target_out_dir = fuchsia_root.join("out").join(out_dir_name);
@@ -75,37 +77,37 @@ pub fn possible_target_out_dir(fuchsia_root: &PathBuf, options: &TargetOptions) 
     Ok(target_out_dir)
 }
 
-pub fn target_out_dir(options: &TargetOptions) -> Result<PathBuf> {
+pub fn target_out_dir(options: &TargetOptions) -> Result<PathBuf, Error> {
     let fuchsia_root = fuchsia_root(options)?;
     possible_target_out_dir(&fuchsia_root, options)
 }
 
-pub fn target_gen_dir(options: &TargetOptions) -> Result<PathBuf> {
+pub fn target_gen_dir(options: &TargetOptions) -> Result<PathBuf, Error> {
     let target_out_dir = target_out_dir(options)?;
     Ok(target_out_dir.join("gen"))
 }
 
-pub fn cargo_out_dir(options: &TargetOptions) -> Result<PathBuf> {
+pub fn cargo_out_dir(options: &TargetOptions) -> Result<PathBuf, Error> {
     let fuchsia_root = fuchsia_root(options)?;
     let target_triple = format!("{}-unknown-fuchsia", options.target_cpu_linker);
     Ok(fuchsia_root.join("garnet").join("target").join(target_triple).join("debug"))
 }
 
-pub fn strip_tool_path(target_options: &TargetOptions) -> Result<PathBuf> {
+pub fn strip_tool_path(target_options: &TargetOptions) -> Result<PathBuf, Error> {
     Ok(toolchain_path(target_options)?.join("bin/llvm-objcopy"))
 }
 
-pub fn sysroot_path(options: &TargetOptions) -> Result<PathBuf> {
+pub fn sysroot_path(options: &TargetOptions) -> Result<PathBuf, Error> {
     let zircon_name =
         if options.target_cpu == "x86-64" { "build-user-x86-64" } else { "build-user-arm64" };
     Ok(fuchsia_root(&options)?.join("out").join("build-zircon").join(zircon_name).join("sysroot"))
 }
 
-pub fn toolchain_path(target_options: &TargetOptions) -> Result<PathBuf> {
+pub fn toolchain_path(target_options: &TargetOptions) -> Result<PathBuf, Error> {
     let platform_name = if is_mac() { "mac-x64" } else { "linux-x64" };
     Ok(fuchsia_root(target_options)?.join("buildtools").join(platform_name).join("clang"))
 }
 
-pub fn clang_linker_path(target_options: &TargetOptions) -> Result<PathBuf> {
+pub fn clang_linker_path(target_options: &TargetOptions) -> Result<PathBuf, Error> {
     Ok(toolchain_path(target_options)?.join("bin").join("clang"))
 }
