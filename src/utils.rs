@@ -2,18 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+use failure::{Error, ResultExt};
 use sdk::{TargetOptions, strip_tool_path};
 use std::path::PathBuf;
 use std::process::Command;
-use std::str;
 use std::time::Duration;
 use uname::uname;
-
-error_chain!{
-    links {
-        SDK(::sdk::Error, ::sdk::ErrorKind);
-    }
-}
 
 #[allow(dead_code)]
 pub fn duration_as_milliseconds(duration: &Duration) -> u64 {
@@ -25,7 +19,7 @@ pub fn is_mac() -> bool {
     uname().unwrap().sysname == "Darwin"
 }
 
-pub fn strip_binary(binary: &PathBuf, target_options: &TargetOptions) -> Result<PathBuf> {
+pub fn strip_binary(binary: &PathBuf, target_options: &TargetOptions) -> Result<PathBuf, Error> {
     let file_name = binary.file_name().unwrap();
     let new_file_name = file_name.to_string_lossy().into_owned() + "_stripped";
     let target_path = binary.parent().unwrap().join(new_file_name);
@@ -34,7 +28,7 @@ pub fn strip_binary(binary: &PathBuf, target_options: &TargetOptions) -> Result<
         .arg(binary)
         .arg(&target_path)
         .status()
-        .chain_err(|| "strip command failed to start")?;
+        .context("strip command failed to start")?;
 
     if !strip_result.success() {
         bail!("strip failed with error {:?}", strip_result);
