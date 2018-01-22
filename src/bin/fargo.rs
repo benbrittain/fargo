@@ -1,12 +1,9 @@
 #![recursion_limit = "1024"]
 
-#[macro_use]
-extern crate error_chain;
+extern crate failure;
 extern crate fargo;
 
 use fargo::run;
-
-error_chain!{}
 
 fn main() {
     if let Err(ref e) = run() {
