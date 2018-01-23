@@ -22,8 +22,8 @@ mod utils;
 use clap::{App, AppSettings, Arg, SubCommand};
 use cross::{pkg_config_path, run_configure, run_pkg_config};
 use device::{enable_networking, netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
-use failure::{Error, ResultExt, err_msg};
 use facade::create_facades;
+use failure::{Error, ResultExt, err_msg};
 use sdk::{cargo_out_dir, clang_linker_path, sysroot_path, target_gen_dir};
 pub use sdk::TargetOptions;
 use std::fs;
@@ -665,7 +665,7 @@ pub fn run() -> Result<(), Error> {
             .values_of(FIDL_PARAM)
             .map(|x| x.collect())
             .unwrap_or_else(|| vec![]);
-        create_facades(&create_facade_params).context("create facade failed")?;
+        create_facades(&create_facade_params, &target_options).context("create facade failed")?;
     }
 
     Ok(())
