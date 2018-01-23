@@ -42,7 +42,14 @@ impl<'a> TargetOptions<'a> {
 
 pub fn fuchsia_root(options: &TargetOptions) -> Result<PathBuf, Error> {
     let fuchsia_root_value = if let Ok(fuchsia_root_value) = env::var("FUCHSIA_ROOT") {
-        fuchsia_root_value
+        let fuchsia_root_path = PathBuf::from(&fuchsia_root_value);
+        if !fuchsia_root_path.is_dir() {
+            bail!(
+                "FUCHSIA_ROOT is set to '{}' but that path does not point to a directory.",
+                &fuchsia_root_value
+            );
+        }
+        fuchsia_root_path
     } else {
         let mut path = env::current_dir().unwrap();
         loop {

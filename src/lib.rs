@@ -22,7 +22,7 @@ mod utils;
 use clap::{App, AppSettings, Arg, SubCommand};
 use cross::{pkg_config_path, run_configure, run_pkg_config};
 use device::{enable_networking, netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
-use facade::create_facades;
+use facade::create_facade;
 use failure::{Error, ResultExt, err_msg};
 use sdk::{cargo_out_dir, clang_linker_path, sysroot_path, target_gen_dir};
 pub use sdk::TargetOptions;
@@ -500,7 +500,7 @@ pub fn run() -> Result<(), Error> {
                     "Create an in-tree facade crate for a FIDL interface.",
                 )
                 .arg(Arg::with_name(FIDL_PARAM).
-                help(FIDL_PARAM_HELP).index(1).multiple(true).required(true))
+                help(FIDL_PARAM_HELP).index(1).required(true))
         )
         .get_matches();
 
@@ -661,11 +661,8 @@ pub fn run() -> Result<(), Error> {
     }
 
     if let Some(create_facade_matches) = matches.subcommand_matches(CREATE_FACADE) {
-        let create_facade_params = create_facade_matches
-            .values_of(FIDL_PARAM)
-            .map(|x| x.collect())
-            .unwrap_or_else(|| vec![]);
-        create_facades(&create_facade_params, &target_options).context("create facade failed")?;
+        let create_facade_param = create_facade_matches.value_of(FIDL_PARAM).unwrap_or_else(|| "");
+        create_facade(&create_facade_param, &target_options).context("create facade failed")?;
     }
 
     Ok(())
