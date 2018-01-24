@@ -54,13 +54,15 @@ fn ensure_directory_at_path(path: &Path, path_description: &str) -> Result<(), E
     Ok(())
 }
 
-pub fn create_facade(path_to_interface: &str, options: &TargetOptions) -> Result<(), Error> {
+pub fn create_facade(path_to_interface: &str, module_name: Option<&str>, options: &TargetOptions) -> Result<(), Error> {
     let interface = fs::canonicalize(path_to_interface)?;
     let fuchsia_root = fuchsia_root(options)?;
     let interface_relative_path = interface.strip_prefix(&fuchsia_root)?;
     let interface_relative = interface_relative_path.to_str().unwrap();
     let crate_name = crate_name_from_path(interface_relative)?;
     let crate_path = fuchsia_root.join("garnet/public/rust/fidl_crates").join(&crate_name);
+    let default_module_name = &module_name_from_path(interface_relative)?;
+    let module_name = module_name.unwrap_or(default_module_name);
 
     // Create lib.rs
     ensure_directory_at_path(&crate_path, "facade crate directory")?;
@@ -84,7 +86,7 @@ pub fn create_facade(path_to_interface: &str, options: &TargetOptions) -> Result
     let contents = create_build_gn_contents(
         &crate_name,
         interface_relative,
-        &module_name_from_path(interface_relative)?,
+        &module_name,
     );
     file.write_all(&contents.as_bytes())?;
 
