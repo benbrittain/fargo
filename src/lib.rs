@@ -11,6 +11,9 @@
 extern crate clap;
 #[macro_use]
 extern crate failure;
+#[macro_use]
+extern crate serde_derive;
+extern crate toml;
 extern crate uname;
 
 mod device;
@@ -327,8 +330,6 @@ pub fn run_cargo(
 static CREATE_FACADE: &'static str = "create-facade";
 static FIDL_PARAM: &'static str = "fidl_interface_path";
 static FIDL_PARAM_HELP: &'static str = "Path to the FIDL interface that will form the new facade";
-static FIDL_MODULE_NAME: &'static str = "fidl_module_name";
-static FIDL_MN_HELP: &'static str = "FIDL module name, defaults the last path component";
 
 #[doc(hidden)]
 pub fn run() -> Result<(), Error> {
@@ -503,8 +504,6 @@ pub fn run() -> Result<(), Error> {
                 )
                 .arg(Arg::with_name(FIDL_PARAM).
                 help(FIDL_PARAM_HELP).index(1).required(true))
-                .arg(Arg::with_name(FIDL_MODULE_NAME).value_name(FIDL_MODULE_NAME)
-                .long("--module-name").help(FIDL_MN_HELP))
         )
         .get_matches();
 
@@ -666,11 +665,7 @@ pub fn run() -> Result<(), Error> {
 
     if let Some(create_facade_matches) = matches.subcommand_matches(CREATE_FACADE) {
         let create_facade_param = create_facade_matches.value_of(FIDL_PARAM).unwrap_or_else(|| "");
-        create_facade(
-            &create_facade_param,
-            create_facade_matches.value_of(FIDL_MODULE_NAME),
-            &target_options,
-        ).context("create facade failed")?;
+        create_facade(&create_facade_param, &target_options).context("create facade failed")?;
     }
 
     Ok(())

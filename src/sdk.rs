@@ -118,3 +118,8 @@ pub fn toolchain_path(target_options: &TargetOptions) -> Result<PathBuf, Error> 
 pub fn clang_linker_path(target_options: &TargetOptions) -> Result<PathBuf, Error> {
     Ok(toolchain_path(target_options)?.join("bin").join("clang"))
 }
+
+pub fn fx_path(target_options: &TargetOptions) -> Result<PathBuf, Error> {
+    let fuchsia_root = fuchsia_root(target_options)?;
+    Ok(fuchsia_root.join("scripts/fx"))
+}
