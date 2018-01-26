@@ -11,16 +11,21 @@
 extern crate clap;
 #[macro_use]
 extern crate failure;
+#[macro_use]
+extern crate serde_derive;
+extern crate toml;
 extern crate uname;
 
 mod device;
 mod cross;
+mod facade;
 mod sdk;
 mod utils;
 
 use clap::{App, AppSettings, Arg, SubCommand};
 use cross::{pkg_config_path, run_configure, run_pkg_config};
 use device::{enable_networking, netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
+use facade::create_facade;
 use failure::{Error, ResultExt, err_msg};
 use sdk::{cargo_out_dir, clang_linker_path, sysroot_path, target_gen_dir};
 pub use sdk::TargetOptions;
@@ -322,6 +327,11 @@ pub fn run_cargo(
     Ok(())
 }
 
+static CREATE_FACADE: &str = "create-facade";
+static FIDL_PARAM: &str = "fidl_interface_path";
+static FIDL_PARAM_HELP: &str = "gn path and label (i.e. //garnet/public/lib/app/fidl:fidl) \
+for the new facade";
+
 #[doc(hidden)]
 pub fn run() -> Result<(), Error> {
     let matches = App::new("fargo")
@@ -488,6 +498,14 @@ pub fn run() -> Result<(), Error> {
                     "Don't pass --host to configure",
                 )),
         )
+        .subcommand(
+            SubCommand::with_name(CREATE_FACADE)
+                .about(
+                    "Create an in-tree facade crate for a FIDL interface.",
+                )
+                .arg(Arg::with_name(FIDL_PARAM).
+                help(FIDL_PARAM_HELP).index(1).required(true))
+        )
         .get_matches();
 
     let verbose = matches.is_present("verbose");
@@ -644,6 +662,11 @@ pub fn run() -> Result<(), Error> {
             &target_options,
         )?;
         return Ok(());
+    }
+
+    if let Some(create_facade_matches) = matches.subcommand_matches(CREATE_FACADE) {
+        let create_facade_param = create_facade_matches.value_of(FIDL_PARAM).unwrap_or_else(|| "");
+        create_facade(&create_facade_param, &target_options).context("create facade failed")?;
     }
 
     Ok(())

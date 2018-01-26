@@ -6,8 +6,12 @@ authors = ["Rob Tsuk <robtsuk@google.com>"]
 [dependencies]
 clap = "2"
 failure = "0.1.1"
+itertools = "0.7"
 uname = "0.1.1"
 notify = "4.0.0"
+serde = "1.0"
+serde_derive = "1.0"
+toml = "0.4"
 
 [[bin]]
 name = "fargo"
