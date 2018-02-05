@@ -119,6 +119,22 @@ pub fn clang_linker_path(target_options: &TargetOptions) -> Result<PathBuf, Erro
     Ok(toolchain_path(target_options)?.join("bin").join("clang"))
 }
 
+pub fn clang_c_compiler_path(target_options: &TargetOptions) -> Result<PathBuf, Error> {
+    Ok(toolchain_path(target_options)?.join("bin").join("clang"))
+}
+
+pub fn clang_cpp_compiler_path(target_options: &TargetOptions) -> Result<PathBuf, Error> {
+    Ok(toolchain_path(target_options)?.join("bin").join("clang++"))
+}
+
+pub fn clang_archiver_path(target_options: &TargetOptions) -> Result<PathBuf, Error> {
+    Ok(toolchain_path(target_options)?.join("bin").join("llvm-ar"))
+}
+
+pub fn clang_ranlib_path(target_options: &TargetOptions) -> Result<PathBuf, Error> {
+    Ok(toolchain_path(target_options)?.join("bin").join("llvm-ranlib"))
+}
+
 pub fn fx_path(target_options: &TargetOptions) -> Result<PathBuf, Error> {
     let fuchsia_root = fuchsia_root(target_options)?;
     Ok(fuchsia_root.join("scripts/fx"))

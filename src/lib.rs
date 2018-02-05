@@ -27,7 +27,8 @@ use cross::{pkg_config_path, run_configure, run_pkg_config};
 use device::{enable_networking, netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
 use facade::create_facade;
 use failure::{Error, ResultExt, err_msg};
-use sdk::{cargo_out_dir, clang_linker_path, sysroot_path, target_gen_dir};
+use sdk::{cargo_out_dir, clang_archiver_path, clang_c_compiler_path, clang_cpp_compiler_path,
+          clang_linker_path, clang_ranlib_path, sysroot_path, target_gen_dir};
 pub use sdk::TargetOptions;
 use std::fs;
 use std::path::PathBuf;
@@ -304,6 +305,10 @@ pub fn run_cargo(
             "CARGO_TARGET_X86_64_UNKNOWN_FUCHSIA_LINKER",
             clang_linker_path(target_options)?.to_str().unwrap(),
         )
+        .env("CC", clang_c_compiler_path(target_options)?.to_str().unwrap())
+        .env("CXX", clang_cpp_compiler_path(target_options)?.to_str().unwrap())
+        .env("AR", clang_archiver_path(target_options)?.to_str().unwrap())
+        .env("RANLIB", clang_ranlib_path(target_options)?.to_str().unwrap())
         .env("PKG_CONFIG_ALL_STATIC", "1")
         .env("PKG_CONFIG_ALLOW_CROSS", "1")
         .env("PKG_CONFIG_PATH", "")
