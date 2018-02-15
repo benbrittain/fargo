@@ -27,8 +27,9 @@ use cross::{pkg_config_path, run_configure, run_pkg_config};
 use device::{enable_networking, netaddr, netls, scp_to_device, ssh, start_emulator, stop_emulator};
 use facade::create_facade;
 use failure::{Error, ResultExt, err_msg};
-use sdk::{cargo_out_dir, clang_archiver_path, clang_c_compiler_path, clang_cpp_compiler_path,
-          clang_linker_path, clang_ranlib_path, sysroot_path, target_gen_dir};
+use sdk::{FuchsiaConfig, cargo_out_dir, clang_archiver_path, clang_c_compiler_path,
+          clang_cpp_compiler_path, clang_linker_path, clang_ranlib_path, sysroot_path,
+          target_gen_dir};
 pub use sdk::TargetOptions;
 use std::fs;
 use std::path::PathBuf;
@@ -518,7 +519,12 @@ pub fn run() -> Result<(), Error> {
         TargetOptions::new(!matches.is_present("debug-os"), matches.value_of("device-name"));
 
     if verbose {
-        println!("target_options = {:?}", target_options);
+        println!("target_options = {:#?}", target_options);
+    }
+
+    let fuchsia_config = FuchsiaConfig::new(&target_options)?;
+    if verbose {
+        println!("fuchsia_config = {:#?}", fuchsia_config);
     }
 
     if let Some(autotest_matches) = matches.subcommand_matches("autotest") {
@@ -593,6 +599,13 @@ pub fn run() -> Result<(), Error> {
     }
 
     if let Some(start_matches) = matches.subcommand_matches("start") {
+        if fuchsia_config.is_release() != target_options.release_os {
+            bail!(
+                "Variant '{}' from .config would override the fargo command line flag.",
+                fuchsia_config.fuchsia_variant
+            );
+        }
+
         return start_emulator(
             start_matches.is_present("graphics"),
             !start_matches.is_present("no_net"),

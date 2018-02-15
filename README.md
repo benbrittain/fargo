@@ -1,38 +1,39 @@
 # fargo
 
-        fargo v0.1.0
-        Fargo is a prototype Fuchsia-specific wrapper around Cargo
+    fargo v0.1.0
+    Fargo is a prototype Fuchsia-specific wrapper around Cargo
 
-        USAGE:
-            fargo [FLAGS] [OPTIONS] [SUBCOMMAND]
+    USAGE:
+        fargo [FLAGS] [OPTIONS] [SUBCOMMAND]
 
-        FLAGS:
-                --debug-os    Use debug user.bootfs and ssh keys
-            -h, --help        Prints help information
-            -V, --version     Prints version information
-            -v, --verbose     Print verbose output while performing commands
+    FLAGS:
+            --debug-os    Use debug user.bootfs and ssh keys
+        -h, --help        Prints help information
+        -V, --version     Prints version information
+        -v, --verbose     Print verbose output while performing commands
 
-        OPTIONS:
-            -N, --device-name <device-name>
-                    Name of device to target, needed if there are multiple devices visible
-                    on the network
+    OPTIONS:
+        -N, --device-name <device-name>    Name of device to target, needed if there are multiple devices visible on the network
 
-        SUBCOMMANDS:
-            autotest        Auto build and test in Fuchsia device or emulator
-            build           Build binary targeting Fuchsia device or emulator
-            build-tests     Build tests for Fuchsia device or emulator
-            cargo           Run a cargo command for Fuchsia. Use -- to indicate that all
-                            following arguments should be passed to cargo.
-            configure       Run a configure script for the cross compilation environment
-            help            Prints this message or the help of the given subcommand(s)
-            list-devices    List visible Fuchsia devices
-            pkg-config      Run pkg-config for the cross compilation environment
-            restart         Stop all Fuchsia emulators and start a new one
-            run             Run binary on Fuchsia device or emulator
-            ssh             Open a shell on Fuchsia device or emulator
-            start           Start a Fuchsia emulator
-            stop            Stop all Fuchsia emulators
-            test            Run unit tests on Fuchsia device or emulator
+    SUBCOMMANDS:
+        autotest             Auto build and test in Fuchsia device or emulator
+        build                Build binary targeting Fuchsia device or emulator
+        build-tests          Build tests for Fuchsia device or emulator
+        cargo                Run a cargo command for Fuchsia. Use -- to indicate that all following arguments should be passed to
+                             cargo.
+        configure            Run a configure script for the cross compilation environment
+        create-facade        Create an in-tree facade crate for a FIDL interface.
+        enable-networking    Enable networking for a running emulator
+        help                 Prints this message or the help of the given subcommand(s)
+        list-devices         List visible Fuchsia devices
+        load-driver          Build driver and load it on Fuchsia device or emulator.
+        pkg-config           Run pkg-config for the cross compilation environment
+        restart              Stop all Fuchsia emulators and start a new one
+        run                  Run binary on Fuchsia device or emulator
+        ssh                  Open a shell on Fuchsia device or emulator
+        start                Start a Fuchsia emulator
+        stop                 Stop all Fuchsia emulators
+        test                 Run unit tests on Fuchsia device or emulator
 
 The `fargo-test` directory contains something one can use to test-drive.
 
@@ -45,36 +46,24 @@ Fuchsia.
 The [Fuchsia Getting
 Started](https://fuchsia.googlesource.com/docs/+/HEAD/getting_started.md)
 instruction are what you need. Since a release build is what fargo expects to
-find you'll want to pass --release to fset. The Rust components that fargo
-needs to cross compile are also not built by default, so you'll have to select
-something other than the default modules.
+find you'll want to pass --release to fx/set. The Rust components that fargo
+needs to cross compile are part of garnet, so you must be using the
+garnet layer or higher.
 
-If you are planning to use Qemu to run your Fuchsia Rust code, a good choice
-for modules is below, in env.sh form or underlying script as one prefers.
+The author most often uses the following steps to update and build Fuchsia in
+preparation for using fargo
 
-    fset x86-64 --release --modules packages/gn/boot_headless,garnet/packages/zircon_rust
-
-or
-
-    packages/gn/gen.py -m packages/gn/boot_headless,garnet/packages/zircon_rust --release
-
-What `packages/gn/boot_headless` does in this instance is prevent the user shell from being
-launched after boot. Since the user shell requires
-[Mozart](https://fuchsia.googlesource.com/mozart), and Mozart has a hard
-dependency on the [Vulkan graphics and compute
-API](https://www.khronos.org/vulkan), *and* Qemu cannot support Vulkan,
-`packages/gn/boot_headless` is pretty much a requirement for Qemu.
-
-If you want a quicker compile, limiting the modules to
-`packages/gn/garnet,garnet/packages/runtime_config,garnet/packages/zircon_rust` will
-compile a lot fewer packages
-but still be usable with Fargo.
+    ./scripts/fx set-layer garnet
+    .jiri_root/bin/jiri update
+    ./scripts/fx set x86 --release
+    ./scripts/fx build-zircon
+    ./scripts/fx build
 
 Once this build is complete, clone and build fargo.
 
     git clone https://fuchsia.googlesource.com/fargo
     cd fargo
-    cargo install
+    cargo install --force
 
 Fargo uses ssh to communicate between your host computer and either Qemu or a
 real device to copy build results and execute them. For Qemu there is a bit of
@@ -98,12 +87,11 @@ Now to verify if fargo is working correctly, try starting a fuchsia machine and 
     cd fargo/fargo-test
     fargo test
 
+Note that fargo start now depends on an environment using fx set. If that isn't the way you start
+Fuchsia emulators, use fargo enable-networking after you've started the emulator.
+
 If all is well, you should see a successful test pass just as if you had ran cargo test on any other
 rust project.
-
-Do note that fargo does not check the fuchsia target env var. Meaning `fargo start` will start a fuchsia
-server using x86-64-release unless you pass it the --debug-os option, in which case it will use the
-debug build. So make sure you use a fuchsia target you built with the rust module enabled.
 
 Additionally, if you are using qemu you need to enable networking, otherwise fargo won't be able to
 copy the binary onto then fuchsia machine to run the tests.
