@@ -4,6 +4,8 @@
 
 use failure::Error;
 use std::env;
+use std::fs::File;
+use std::io::Read;
 use std::path::PathBuf;
 use utils::is_mac;
 
@@ -138,4 +140,53 @@ pub fn clang_ranlib_path(target_options: &TargetOptions) -> Result<PathBuf, Erro
 pub fn fx_path(target_options: &TargetOptions) -> Result<PathBuf, Error> {
     let fuchsia_root = fuchsia_root(target_options)?;
     Ok(fuchsia_root.join("scripts/fx"))
+}
+
+#[derive(Debug)]
+pub struct FuchsiaConfig {
+    pub fuchsia_build_dir: String,
+    pub fuchsia_variant: String,
+    pub fuchsia_arch: String,
+    pub zircon_project: String,
+}
+
+impl FuchsiaConfig {
+    pub fn new(target_options: &TargetOptions) -> Result<FuchsiaConfig, Error> {
+        let mut config = FuchsiaConfig {
+            fuchsia_build_dir: String::from(""),
+            fuchsia_variant: String::from(""),
+            fuchsia_arch: String::from(""),
+            zircon_project: String::from(""),
+        };
+        let fuchsia_root = fuchsia_root(target_options)?;
+        let config_path = fuchsia_root.join(".config");
+        let mut config_file = File::open(&config_path)?;
+        let mut config_file_contents_str = String::new();
+        config_file.read_to_string(&mut config_file_contents_str)?;
+        for one_line in config_file_contents_str.lines() {
+            let parts: Vec<&str> = one_line.split("=").collect();
+            if parts.len() == 2 {
+                match parts[0] {
+                    "FUCHSIA_BUILD_DIR" => {
+                        config.fuchsia_build_dir = String::from(parts[1].trim_matches('"'))
+                    }
+                    "FUCHSIA_VARIANT" => {
+                        config.fuchsia_variant = String::from(parts[1].trim_matches('"'))
+                    }
+                    "FUCHSIA_ARCH" => {
+                        config.fuchsia_arch = String::from(parts[1].trim_matches('"'))
+                    }
+                    "ZIRCON_PROJECT" => {
+                        config.zircon_project = String::from(parts[1].trim_matches('"'))
+                    }
+                    _ => (),
+                }
+            }
+        }
+        Ok(config)
+    }
+
+    pub fn is_debug(&self) -> bool {
+        self.fuchsia_variant == "debug"
+    }
 }

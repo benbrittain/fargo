@@ -214,26 +214,24 @@ pub fn start_emulator(
     target_options: &TargetOptions,
 ) -> Result<(), Error> {
     let fuchsia_root = fuchsia_root(target_options)?;
-    let run_zircon_script = fuchsia_root.join("scripts/run-zircon-x86-64");
-    if !run_zircon_script.exists() {
-        bail!("run zircon script not found at {:?}", run_zircon_script);
+    let fx_script = fuchsia_root.join("scripts/fx");
+    if !fx_script.exists() {
+        bail!("fx script not found at {:?}", fx_script);
     }
-    let user_bootfs = target_out_dir(target_options)?.join("user.bootfs");
-    if !user_bootfs.exists() {
-        bail!("user.bootfs not found at {:?}", user_bootfs);
-    }
-    let user_bootfs_str = user_bootfs.to_str().unwrap();
-    let mut args = vec!["-N", "-x", user_bootfs_str];
+    let mut args = vec!["run", "-N"];
     if with_graphics {
         args.push("-g");
     }
 
-    let child = Command::new(run_zircon_script)
+    println!("fx_script = {:?}", fx_script);
+
+    let child = Command::new(fx_script)
         .args(&args)
         .stdout(Stdio::null())
         .stderr(Stdio::null())
+        .current_dir(&fuchsia_root)
         .spawn()
-        .context("unable to run zircon")?;
+        .context("unable to run qemu")?;
 
     println!("emulator started with process ID {}", child.id());
 
