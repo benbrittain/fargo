@@ -77,6 +77,12 @@ fn run_program_on_target(
     if verbose {
         println!("running {}", command_string);
     }
+
+    if set_root_view {
+        ssh(verbose, target_options, "killall scene_manager").unwrap_or(());
+        ssh(verbose, target_options, "killall set_root_view").unwrap_or(());
+    }
+
     ssh(verbose, target_options, &command_string)?;
     Ok(())
 }
@@ -190,7 +196,7 @@ fn build_binary(
 fn run_binary(
     verbose: bool,
     release: bool,
-    launch: bool,
+    set_root_view: bool,
     target_options: &TargetOptions,
     params: &[&str],
 ) -> Result<(), Error> {
@@ -200,7 +206,7 @@ fn run_binary(
         args.push(param);
     }
 
-    run_cargo(verbose, release, launch, &args, target_options, None, None)?;
+    run_cargo(verbose, release, set_root_view, &args, target_options, None, None)?;
     Ok(())
 }
 
@@ -238,12 +244,13 @@ fn load_driver(verbose: bool, release: bool, target_options: &TargetOptions) -> 
 pub fn run_cargo(
     verbose: bool,
     release: bool,
-    launch: bool,
+    set_root_view: bool,
     args: &[&str],
     target_options: &TargetOptions,
     runner: Option<PathBuf>,
     additional_target_args: Option<&str>,
 ) -> Result<(), Error> {
+    let set_root_view_arg = format!("--{}", SET_ROOT_VIEW);
     let mut target_args = vec!["--target", "x86_64-unknown-fuchsia"];
 
     if release {
@@ -276,8 +283,8 @@ pub fn run_cargo(
 
     runner_args.push("run-on-target");
 
-    if launch {
-        runner_args.push("--launch");
+    if set_root_view {
+        runner_args.push(&set_root_view_arg);
     }
 
     if let Some(args_for_target) = additional_target_args {
@@ -483,8 +490,8 @@ pub fn run() -> Result<(), Error> {
                         .value_name("args")
                         .help("arguments to pass to the test runner"),
                 )
-                .arg(Arg::with_name("launch").long("launch").help(
-                    "Use launch to run binary.",
+                .arg(Arg::with_name(SET_ROOT_VIEW).long(SET_ROOT_VIEW).help(
+                    "Use set_root_view to run binary.",
                 ))
                 .arg(Arg::with_name("run_on_target_params").index(1).multiple(
                     true,
@@ -575,7 +582,7 @@ pub fn run() -> Result<(), Error> {
         return run_binary(
             verbose,
             run_matches.is_present("release"),
-            run_matches.is_present("launch"),
+            run_matches.is_present(SET_ROOT_VIEW),
             &target_options,
             &params,
         );
