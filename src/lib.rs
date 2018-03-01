@@ -55,14 +55,14 @@ fn run_program_on_target(
     filename: &str,
     verbose: bool,
     target_options: &TargetOptions,
-    launch: bool,
+    set_root_view: bool,
     params: &[&str],
     test_args: Option<&str>,
 ) -> Result<(), Error> {
     let source_path = PathBuf::from(&filename);
     let stripped_source_path = strip_binary(&source_path, target_options)?;
     let destination_path = copy_to_target(&stripped_source_path, verbose, target_options)?;
-    let mut command_string = (if launch { "launch " } else { "" }).to_string();
+    let mut command_string = (if set_root_view { "set_root_view " } else { "" }).to_string();
     command_string.push_str(&destination_path);
     for param in params {
         command_string.push(' ');
@@ -338,6 +338,8 @@ static FIDL_PARAM: &str = "fidl_interface_path";
 static FIDL_PARAM_HELP: &str = "gn path and label (i.e. //garnet/public/lib/app/fidl:fidl) \
 for the new facade";
 
+static SET_ROOT_VIEW: &str = "set-root-view";
+
 #[doc(hidden)]
 pub fn run() -> Result<(), Error> {
     let matches = App::new("fargo")
@@ -416,8 +418,8 @@ pub fn run() -> Result<(), Error> {
                 .arg(Arg::with_name("release").long("release").help(
                     "Build release",
                 ))
-                .arg(Arg::with_name("launch").long("launch").help(
-                    "Use launch to run binary.",
+                .arg(Arg::with_name(SET_ROOT_VIEW).long(SET_ROOT_VIEW).help(
+                    "Use set_root_view to run binary.",
                 ))
                 .arg(
                     Arg::with_name("example")
@@ -652,7 +654,7 @@ pub fn run() -> Result<(), Error> {
             program,
             verbose,
             &target_options,
-            run_on_target_matches.is_present("launch"),
+            run_on_target_matches.is_present(SET_ROOT_VIEW),
             args,
             test_args,
         );
