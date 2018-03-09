@@ -35,7 +35,7 @@ impl<'a> TargetOptions<'a> {
     pub fn new(release_os: bool, device_name: Option<&'a str>) -> TargetOptions {
         TargetOptions {
             release_os: release_os,
-            target_cpu: "x86-64",
+            target_cpu: "x64",
             target_cpu_linker: "x86_64",
             device_name: device_name,
         }
@@ -108,7 +108,7 @@ pub fn strip_tool_path(target_options: &TargetOptions) -> Result<PathBuf, Error>
 
 pub fn sysroot_path(options: &TargetOptions) -> Result<PathBuf, Error> {
     let zircon_name =
-        if options.target_cpu == "x86-64" { "build-user-x86-64" } else { "build-user-arm64" };
+        if options.target_cpu == "x64" { "build-user-x86-64" } else { "build-user-arm64" };
     Ok(fuchsia_root(&options)?.join("out").join("build-zircon").join(zircon_name).join("sysroot"))
 }
 
